@@ -68,6 +68,9 @@ function generateFillBlankData(questions, currentIndex, blankCount = 3) {
   return { blanks, options };
 }
 
+// =================================================================
+// MAIN APP
+// =================================================================
 
 function App() {
   const [questions, setQuestions] = useState([]);
@@ -79,11 +82,9 @@ function App() {
 
   // Fetch data from Firebase on mount and listen for changes
   useEffect(() => {
-    // onValue is a real-time listener.
     const unsubscribe = dbRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Firebase returns an array-like object. We filter out the null at index 0.
         const allQuestions = (data.questions || []).filter(Boolean);
         setQuestions(allQuestions);
         setUnlockedIds(data.unlockedIds || []);
@@ -95,21 +96,17 @@ function App() {
       setLoadError(error.message);
     });
     
-    // Cleanup listener on component unmount
     return () => unsubscribe();
   }, []);
 
-  // Write changes to unlockedIds back to Firebase
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
     db.ref('/unlockedIds').set(newUnlockedIds);
   };
   
-  // Write changes to a specific question (e.g., YouTube link)
   const updateQuestionInFirebase = (updatedQuestion) => {
     db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
   };
   
-  // Determine unlocked questions
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
 
   const handleUnlockNext = () => {
@@ -132,34 +129,28 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* HEADER */}
       <header className="bg-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">Simple Christian Catechism</h1>
           <nav className="space-x-2">
             <button
-              className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+              className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
               onClick={() => setView('learn')}
             >
               Learn
             </button>
             <button
-              className={`px-3 py-1 rounded ${view === 'games' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+              className={`px-3 py-1 rounded ${view === 'games' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
               onClick={() => setView('games')}
             >
               Games
             </button>
-            <button
-              className={`px-3 py-1 rounded ${adminMode ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-              onClick={() => {
-                setAdminMode(!adminMode);
-                if (adminMode) setAdminAuth(false); // Log out on close
-              }}
-            >
-              {adminMode ? 'Close Admin' : 'Admin'}
-            </button>
           </nav>
         </div>
       </header>
+
+      {/* MAIN */}
       <main className="flex-1 max-w-5xl mx-auto p-4">
         {loadError ? (
           <div className="text-red-600">Error loading data: {loadError}</div>
@@ -179,10 +170,22 @@ function App() {
           <GamesView questions={questions} unlockedIds={unlockedIds} />
         )}
       </main>
+
+      {/* FOOTER */}
+      <footer className="bg-gray-100 border-t p-4 text-center">
+        <button
+          className={`px-3 py-1 rounded ${adminMode ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+          onClick={() => {
+            setAdminMode(!adminMode);
+            if (adminMode) setAdminAuth(false);
+          }}
+        >
+          {adminMode ? 'Close Admin' : 'Admin'}
+        </button>
+      </footer>
     </div>
   );
 }
-
 function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState('');
   const handleSubmit = (e) => {
@@ -205,7 +208,7 @@ function AdminLogin({ onSuccess, onCancel }) {
         />
       </div>
       <div className="flex space-x-2">
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+        <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
           Login
         </button>
         <button
@@ -248,13 +251,13 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     <div className="space-y-4">
       <div className="flex space-x-2">
         <button
-          className="bg-green-600 text-white px-4 py-2 rounded"
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           onClick={handleUnlockNext}
         >
           Unlock Next
         </button>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           onClick={unlockAll}
         >
           Unlock All
@@ -319,25 +322,25 @@ function LearnView({ questions, unlockedIds }) {
 function QuestionCard({ question }) {
   const [showAnswer, setShowAnswer] = useState(false);
   return (
-    <div className="bg-white shadow rounded p-4 space-y-2">
+    <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
       <div className="flex justify-between items-center">
-        <h2 className="font-semibold">
+        <h2 className="text-lg font-semibold">
           {question.id}. {question.question}
         </h2>
         <button
-          className="text-blue-600 underline"
+          className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
           onClick={() => setShowAnswer(!showAnswer)}
         >
           {showAnswer ? 'Hide' : 'Show'} Answer
         </button>
       </div>
       {showAnswer && (
-        <p className="text-gray-800">
+        <p className="text-gray-700 leading-relaxed">
           {question.answer}
         </p>
       )}
       {question.youtube && (
-        <div className="mt-2">
+        <div className="mt-2 rounded-lg overflow-hidden shadow-md">
           <iframe
             className="w-full h-48"
             src={transformYouTubeURL(question.youtube)}
@@ -367,6 +370,9 @@ function transformYouTubeURL(url) {
   }
 }
 
+// GamesView, MCQGame, FillBlankGame, FlashcardsGame remain unchanged
+// (just styled with purple buttons instead of blue for consistency)
+
 function GamesView({ questions, unlockedIds }) {
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
   const [mode, setMode] = useState('mcq');
@@ -377,19 +383,19 @@ function GamesView({ questions, unlockedIds }) {
     <div className="space-y-4">
       <div className="space-x-2 mb-4">
         <button
-          className={`px-3 py-1 rounded ${mode === 'mcq' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          className={`px-3 py-1 rounded ${mode === 'mcq' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
           onClick={() => setMode('mcq')}
         >
           Multiple Choice
         </button>
         <button
-          className={`px-3 py-1 rounded ${mode === 'fill' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          className={`px-3 py-1 rounded ${mode === 'fill' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
           onClick={() => setMode('fill')}
         >
           Fill in the Blank
         </button>
         <button
-          className={`px-3 py-1 rounded ${mode === 'flash' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          className={`px-3 py-1 rounded ${mode === 'flash' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
           onClick={() => setMode('flash')}
         >
           Flashcards
@@ -410,7 +416,6 @@ function MCQGame({ questions }) {
   const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    // Reset game when questions or index changes
     if (questions.length > 0) {
       setOptions(getMultipleChoiceOptions(questions, index));
     }
@@ -438,7 +443,7 @@ function MCQGame({ questions }) {
       <div className="space-y-4">
         <p>You scored {score} out of {questions.length}.</p>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           onClick={() => {
             setIndex(0);
             setSelected(null);
@@ -463,7 +468,14 @@ function MCQGame({ questions }) {
           {options.map((option, i) => (
             <button
               key={i}
-              className={`block w-full text-left px-3 py-2 rounded border ${selected === null ? 'bg-gray-100' : option === questions[index].answer ? 'bg-green-200' : option === selected ? 'bg-red-200' : 'bg-gray-100'}`}
+              className={`block w-full text-left px-3 py-2 rounded border 
+                ${selected === null 
+                  ? 'bg-gray-100' 
+                  : option === questions[index].answer 
+                    ? 'bg-green-200' 
+                    : option === selected 
+                      ? 'bg-red-200' 
+                      : 'bg-gray-100'}`}
               onClick={() => handleSelect(option)}
             >
               {option}
@@ -471,7 +483,7 @@ function MCQGame({ questions }) {
           ))}
         </div>
         {selected !== null && (
-          <button className="mt-4 bg-blue-600 text-white px-4 py-2 rounded" onClick={next}>
+          <button className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700" onClick={next}>
             Next
           </button>
         )}
@@ -496,7 +508,6 @@ function FillBlankGame({ questions }) {
   }, [questions, index]);
 
   const fillWord = (word) => {
-    // find first empty slot in filled array
     const idx = data.blanks.findIndex((b, i) => b.hidden && filled[i] === '');
     if (idx === -1) return;
     const newFilled = [...filled];
@@ -505,7 +516,6 @@ function FillBlankGame({ questions }) {
   };
 
   const checkAnswer = () => {
-    // compare filled words with original
     const isCorrect = data.blanks.every((b, i) => (!b.hidden || b.original === filled[i]));
     if (isCorrect) setScore(score + 1);
     if (index + 1 < questions.length) {
@@ -521,7 +531,7 @@ function FillBlankGame({ questions }) {
       <div className="space-y-4">
         <p>You scored {score} out of {questions.length}.</p>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           onClick={() => {
             setIndex(0);
             setScore(0);
@@ -533,11 +543,12 @@ function FillBlankGame({ questions }) {
       </div>
     );
   }
-  // Build displayed sentence with blanks replaced by either filled word or underscores
+
   const displaySentence = data.blanks.map((b, i) => {
     if (!b.hidden) return b.original;
     return filled[i] || '____';
   });
+
   return (
     <div className="space-y-4">
       <div className="font-semibold">
@@ -550,7 +561,7 @@ function FillBlankGame({ questions }) {
           {data.options.map((word, idx) => (
             <button
               key={idx}
-              className="bg-gray-200 px-2 py-1 rounded"
+              className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
               onClick={() => fillWord(word)}
             >
               {word}
@@ -558,7 +569,7 @@ function FillBlankGame({ questions }) {
           ))}
         </div>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           onClick={checkAnswer}
         >
           {index + 1 < questions.length ? 'Next' : 'Finish'}
@@ -587,7 +598,7 @@ function FlashcardsGame({ questions }) {
       <div className="space-y-4">
         <p>You've gone through all flashcards.</p>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           onClick={() => {
             setIndex(0);
             setShowAnswer(false);
@@ -606,7 +617,7 @@ function FlashcardsGame({ questions }) {
         Card {index + 1} of {questions.length}
       </div>
       <div
-        className="bg-white p-6 shadow rounded cursor-pointer relative"
+        className="bg-white p-6 shadow rounded cursor-pointer relative hover:shadow-lg transition"
         onClick={() => setShowAnswer(!showAnswer)}
         style={{ minHeight: '8rem' }}
       >
@@ -623,7 +634,7 @@ function FlashcardsGame({ questions }) {
         )}
       </div>
       <button
-        className="bg-blue-600 text-white px-4 py-2 rounded"
+        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
         onClick={next}
       >
         {index + 1 < questions.length ? 'Next' : 'Finish'}
