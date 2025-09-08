@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: "simplechristiancatechism.appspot.com",
   messagingSenderId: "605718866345",
   appId: "1:605718866345:web:60c9e790e5148ff78fbcb8",
-  measurementId: "G-JKY86F4M6H"
+  measurementId: "G-JKY86F4M6H",
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
