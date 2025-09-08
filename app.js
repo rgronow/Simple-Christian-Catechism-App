@@ -233,35 +233,84 @@ function App() {
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const [pin, setPin] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nickname = name.trim().toLowerCase();
     if (!nickname) return;
 
-    const snapshot = await db.ref(`/users/${nickname}`).once("value");
-    if (!snapshot.exists()) {
-      // Create user if they don’t exist yet
-      await db.ref(`/users/${nickname}`).set({ created: Date.now() });
+    if (nickname === "admin") {
+      // Force Admin PIN flow
+      setIsAdminLogin(true);
+      return;
     }
 
-    // ✅ Either way, log them in
-    onSubmit(nickname);
-    localStorage.setItem("catechismUser", nickname);
+    try {
+      const snapshot = await db.ref(`/users/${nickname}`).once("value");
+      if (!snapshot.exists()) {
+        await db.ref(`/users/${nickname}`).set({ created: Date.now() });
+      }
+      onSubmit(nickname);
+      localStorage.setItem("catechismUser", nickname);
+    } catch (err) {
+      console.error("Error logging in:", err);
+      setError("Something went wrong. Please try again.");
+    }
   };
 
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    if (pin === "godfirst") {
+      onSubmit("admin");
+      localStorage.setItem("catechismUser", "admin");
+    } else {
+      setError("Invalid Admin PIN");
+    }
+  };
+
+  // Normal nickname form
+  if (!isAdminLogin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
+        >
+          <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
+          <input
+            type="text"
+            placeholder="Enter your nickname"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="border rounded w-full p-2"
+          />
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // Admin PIN form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleAdminLogin}
         className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
       >
-        <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
+        <h1 className="text-xl font-semibold text-center">Admin Login</h1>
         <input
-          type="text"
-          placeholder="Enter your nickname"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          type="password"
+          placeholder="Enter Admin PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
           className="border rounded w-full p-2"
         />
         {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -269,7 +318,14 @@ function UserSelect({ onSubmit }) {
           type="submit"
           className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
         >
-          Continue
+          Login as Admin
+        </button>
+        <button
+          type="button"
+          className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+          onClick={() => setIsAdminLogin(false)}
+        >
+          Back
         </button>
       </form>
     </div>
