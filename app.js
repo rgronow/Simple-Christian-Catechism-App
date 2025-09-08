@@ -1,4 +1,4 @@
-// app.js - Firebase + Lightweight Identity (Global Admin Unlocks) + Custom Colours
+// app.js - Firebase + Lightweight Identity (Global Admin Unlocks, 3 Video Fields)
 
 const { useState, useEffect } = React;
 
@@ -23,7 +23,6 @@ const dbRef = db.ref('/');
 // =================================================================
 // Utility functions
 // =================================================================
-
 function shuffle(array) {
   const arr = array.slice();
   for (let i = arr.length - 1; i > 0; i--) {
@@ -70,7 +69,6 @@ function generateFillBlankData(questions, currentIndex, blankCount = 3) {
 // =================================================================
 // MAIN APP
 // =================================================================
-
 function App() {
   const [questions, setQuestions] = useState([]);
   const [unlockedIds, setUnlockedIds] = useState([]);
@@ -116,6 +114,7 @@ function App() {
     }
   };
 
+  // If no nickname chosen, show user entry screen
   if (!user) {
     return <UserSelect onSubmit={(name) => {
       setUser(name);
@@ -123,10 +122,11 @@ function App() {
     }} />;
   }
 
+  // If admin mode active but not logged in
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold mb-4" style={{ color: '#ffbd59' }}>Admin Login</h1>
+        <h1 className="text-2xl font-bold mb-4">Admin Login</h1>
         <AdminLogin onSuccess={() => setAdminAuth(true)} onCancel={() => setAdminMode(false)} />
       </div>
     );
@@ -137,7 +137,7 @@ function App() {
       {/* HEADER */}
       <header className="bg-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left" style={{ color: '#ffbd59' }}>
+          <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left">
             Simple Christian Catechism
           </h1>
           <nav className="flex flex-wrap justify-center gap-2">
@@ -195,7 +195,7 @@ function App() {
         </button>
         <button
           className="px-3 py-1 rounded text-white"
-          style={{ backgroundColor: '#d9534f' }}
+          style={{ backgroundColor: '#f59e0b' }}
           onClick={() => {
             setUser("");
             localStorage.removeItem("catechismUser");
@@ -203,13 +203,28 @@ function App() {
         >
           Switch User
         </button>
+        <button
+          className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: '#dc2626' }}
+          disabled={user.toLowerCase() === "admin"}
+          onClick={() => {
+            if (window.confirm("Are you sure you want to permanently delete this user?")) {
+              db.ref(`/users/${user}`).remove().then(() => {
+                localStorage.removeItem("catechismUser");
+                setUser("");
+              });
+            }
+          }}
+        >
+          Delete User
+        </button>
       </footer>
     </div>
   );
 }
 
 // =================================================================
-// USER SELECTION SCREEN
+// USER SELECTION SCREEN (nickname + admin PIN check)
 // =================================================================
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
@@ -257,7 +272,7 @@ function UserSelect({ onSubmit }) {
           onSubmit={handleSubmit}
           className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
         >
-          <h1 className="text-xl font-semibold text-center" style={{ color: '#ffbd59' }}>Pick a nickname</h1>
+          <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
           <input
             type="text"
             placeholder="Enter your nickname"
@@ -284,7 +299,7 @@ function UserSelect({ onSubmit }) {
         onSubmit={handleAdminLogin}
         className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
       >
-        <h1 className="text-xl font-semibold text-center" style={{ color: '#ffbd59' }}>Admin Login</h1>
+        <h1 className="text-xl font-semibold text-center">Admin Login</h1>
         <input
           type="password"
           placeholder="Enter Admin PIN"
@@ -302,7 +317,7 @@ function UserSelect({ onSubmit }) {
         </button>
         <button
           type="button"
-          className="w-full px-4 py-2 rounded bg-gray-300"
+          className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
           onClick={() => setIsAdminLogin(false)}
         >
           Back
@@ -313,7 +328,7 @@ function UserSelect({ onSubmit }) {
 }
 
 // =================================================================
-// ADMIN LOGIN (inline mode, not nickname entry)
+// ADMIN LOGIN COMPONENT
 // =================================================================
 function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState('');
@@ -337,7 +352,11 @@ function AdminLogin({ onSuccess, onCancel }) {
         />
       </div>
       <div className="flex space-x-2">
-        <button type="submit" className="text-white px-4 py-2 rounded" style={{ backgroundColor: '#0097b2' }}>
+        <button
+          type="submit"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
+        >
           Login
         </button>
         <button
@@ -365,10 +384,10 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     setUnlockedIds(newUnlockedIds);
   };
 
-  const handleLinkChange = (id, value) => {
+  const handleFieldChange = (id, field, value) => {
     const questionToUpdate = questions.find((q) => q.id === id);
     if (questionToUpdate) {
-      updateQuestion({ ...questionToUpdate, youtube: value });
+      updateQuestion({ ...questionToUpdate, [field]: value });
     }
   };
 
@@ -382,27 +401,29 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
       <div className="flex space-x-2">
         <button
           className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: '#0097b2' }}
+          style={{ backgroundColor: '#16a34a' }}
           onClick={handleUnlockNext}
         >
           Unlock Next
         </button>
         <button
           className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: '#ffbd59', color: '#000' }}
+          style={{ backgroundColor: '#0097b2' }}
           onClick={unlockAll}
         >
           Unlock All
         </button>
       </div>
       <div className="overflow-auto max-h-[70vh]">
-        <table className="min-w-full border">
+        <table className="min-w-full border text-sm">
           <thead>
-            <tr style={{ backgroundColor: '#f9f9f9' }}>
+            <tr>
               <th className="border px-2 py-1 text-left">#</th>
               <th className="border px-2 py-1 text-left">Question</th>
-              <th className="border px-2 py-1 text-left">Unlocked</th>
-              <th className="border px-2 py-1 text-left">YouTube Link</th>
+              <th className="border px-2 py-1 text-center">Unlocked</th>
+              <th className="border px-2 py-1 text-left">Answer Video</th>
+              <th className="border px-2 py-1 text-left">Song</th>
+              <th className="border px-2 py-1 text-left">Sermon</th>
             </tr>
           </thead>
           <tbody>
@@ -424,8 +445,26 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                     type="text"
                     className="border rounded w-full p-1 text-xs"
                     value={q.youtube || ''}
-                    onChange={(e) => handleLinkChange(q.id, e.target.value)}
-                    placeholder="Paste YouTube link here"
+                    onChange={(e) => handleFieldChange(q.id, 'youtube', e.target.value)}
+                    placeholder="Paste Answer video link"
+                  />
+                </td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="text"
+                    className="border rounded w-full p-1 text-xs"
+                    value={q.song || ''}
+                    onChange={(e) => handleFieldChange(q.id, 'song', e.target.value)}
+                    placeholder="Paste Song link"
+                  />
+                </td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="text"
+                    className="border rounded w-full p-1 text-xs"
+                    value={q.sermon || ''}
+                    onChange={(e) => handleFieldChange(q.id, 'sermon', e.target.value)}
+                    placeholder="Paste Sermon link"
                   />
                 </td>
               </tr>
@@ -448,9 +487,7 @@ function LearnView({ questions, unlockedIds }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm" style={{ color: '#0097b2' }}>
-        Unlocked {unlocked.length} of {questions.length} questions
-      </p>
+      <p className="text-sm text-gray-600">Unlocked {unlocked.length} of {questions.length} questions</p>
       {unlocked.map((q) => (
         <QuestionCard key={q.id} question={q} />
       ))}
@@ -468,14 +505,14 @@ function QuestionCard({ question }) {
 
   return (
     <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
-      <h2 className="text-lg font-semibold" style={{ color: '#ffbd59' }}>
+      <h2 className="text-lg font-semibold">
         {question.id}. {question.question}
       </h2>
 
       {/* Buttons row */}
       <div className="flex flex-wrap gap-2">
         <button
-          className="text-white px-3 py-1 rounded"
+          className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={() => setShowAnswer(!showAnswer)}
         >
@@ -484,7 +521,7 @@ function QuestionCard({ question }) {
 
         {question.song && (
           <button
-            className="text-white px-3 py-1 rounded"
+            className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: '#0097b2' }}
             onClick={() => setShowSong(!showSong)}
           >
@@ -494,11 +531,11 @@ function QuestionCard({ question }) {
 
         {question.sermon && (
           <button
-            className="text-white px-3 py-1 rounded"
+            className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: '#0097b2' }}
             onClick={() => setShowSermon(!showSermon)}
           >
-            {showSermon ? 'Hide Sermon' : '5 min sermon'}
+            {showSermon ? 'Hide Sermon' : '5 min Sermon'}
           </button>
         )}
       </div>
@@ -538,6 +575,22 @@ function QuestionCard({ question }) {
     </div>
   );
 }
+
+function transformYouTubeURL(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return `https://www.youtube.com/embed/${v}`;
+    }
+    if (u.hostname === 'youtu.be') {
+      return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+    }
+    return url;
+  } catch (e) {
+    return url;
+  }
+}
 // =================================================================
 // GAMES VIEW
 // =================================================================
@@ -551,7 +604,7 @@ function GamesView({ questions, unlockedIds }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm" style={{ color: '#0097b2' }}>
+      <p className="text-sm text-gray-600">
         Unlocked {unlocked.length} of {questions.length} questions
       </p>
       <div className="flex flex-wrap gap-2 mb-4">
@@ -620,9 +673,9 @@ function MCQGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p style={{ color: '#ffbd59' }}>You scored {score} out of {questions.length}.</p>
+        <p>You scored {score} out of {questions.length}.</p>
         <button
-          className="text-white px-4 py-2 rounded"
+          className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
@@ -639,7 +692,7 @@ function MCQGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold" style={{ color: '#ffbd59' }}>
+      <div className="font-semibold">
         Question {index + 1} of {questions.length}
       </div>
       <div className="bg-white p-4 shadow rounded">
@@ -648,17 +701,15 @@ function MCQGame({ questions }) {
           {options.map((option, i) => (
             <button
               key={i}
-              className={`block w-full text-left px-3 py-2 rounded border`}
-              style={{
-                backgroundColor:
-                  selected === null
-                    ? '#f3f4f6'
-                    : option === questions[index].answer
-                    ? '#a5d6a7' // green for correct
-                    : option === selected
-                    ? '#ef9a9a' // red for wrong
-                    : '#f3f4f6',
-              }}
+              className={`block w-full text-left px-3 py-2 rounded border ${
+                selected === null
+                  ? 'bg-gray-100'
+                  : option === questions[index].answer
+                  ? 'bg-green-200'
+                  : option === selected
+                  ? 'bg-red-200'
+                  : 'bg-gray-100'
+              }`}
               onClick={() => handleSelect(option)}
             >
               {option}
@@ -667,7 +718,7 @@ function MCQGame({ questions }) {
         </div>
         {selected !== null && (
           <button
-            className="mt-4 text-white px-4 py-2 rounded"
+            className="mt-4 px-4 py-2 rounded text-white"
             style={{ backgroundColor: '#0097b2' }}
             onClick={next}
           >
@@ -719,9 +770,9 @@ function FillBlankGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p style={{ color: '#ffbd59' }}>You scored {score} out of {questions.length}.</p>
+        <p>You scored {score} out of {questions.length}.</p>
         <button
-          className="text-white px-4 py-2 rounded"
+          className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
@@ -742,7 +793,7 @@ function FillBlankGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold" style={{ color: '#ffbd59' }}>
+      <div className="font-semibold">
         Question {index + 1} of {questions.length}
       </div>
       <div className="bg-white p-4 shadow rounded">
@@ -752,8 +803,7 @@ function FillBlankGame({ questions }) {
           {data.options.map((word, idx) => (
             <button
               key={idx}
-              className="px-2 py-1 rounded"
-              style={{ backgroundColor: '#f3f4f6' }}
+              className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
               onClick={() => fillWord(word)}
             >
               {word}
@@ -761,7 +811,7 @@ function FillBlankGame({ questions }) {
           ))}
         </div>
         <button
-          className="text-white px-4 py-2 rounded"
+          className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={checkAnswer}
         >
@@ -792,9 +842,9 @@ function FlashcardsGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p style={{ color: '#ffbd59' }}>You've gone through all flashcards.</p>
+        <p>You've gone through all flashcards.</p>
         <button
-          className="text-white px-4 py-2 rounded"
+          className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
@@ -810,7 +860,7 @@ function FlashcardsGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold" style={{ color: '#ffbd59' }}>
+      <div className="font-semibold">
         Card {index + 1} of {questions.length}
       </div>
       <div
@@ -831,7 +881,7 @@ function FlashcardsGame({ questions }) {
         )}
       </div>
       <button
-        className="text-white px-4 py-2 rounded"
+        className="px-4 py-2 rounded text-white"
         style={{ backgroundColor: '#0097b2' }}
         onClick={next}
       >
