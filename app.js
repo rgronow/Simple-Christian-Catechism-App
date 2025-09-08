@@ -240,14 +240,14 @@ function UserSelect({ onSubmit }) {
     if (!nickname) return;
 
     const snapshot = await db.ref(`/users/${nickname}`).once("value");
-    if (snapshot.exists()) {
-      setError("That nickname is taken, please pick another.");
-      return;
+    if (!snapshot.exists()) {
+      // Create user if they don’t exist yet
+      await db.ref(`/users/${nickname}`).set({ created: Date.now() });
     }
 
-    // Create user branch immediately
-    db.ref(`/users/${nickname}`).set({ created: Date.now() });
+    // ✅ Either way, log them in
     onSubmit(nickname);
+    localStorage.setItem("catechismUser", nickname);
   };
 
   return (
@@ -275,6 +275,7 @@ function UserSelect({ onSubmit }) {
     </div>
   );
 }
+
 // =================================================================
 // ADMIN LOGIN
 // =================================================================
