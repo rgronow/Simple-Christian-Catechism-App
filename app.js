@@ -297,6 +297,9 @@ function AdminLogin({ onSuccess, onCancel }) {
 // =================================================================
 // ADMIN VIEW (global unlocks apply to all users)
 // =================================================================
+// =================================================================
+// ADMIN VIEW (global unlocks apply to all users)
+// =================================================================
 function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
   const toggleUnlocked = (id) => {
     let newUnlockedIds;
@@ -308,10 +311,10 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     setUnlockedIds(newUnlockedIds);
   };
 
-  const handleLinkChange = (id, value) => {
+  const handleFieldChange = (id, field, value) => {
     const questionToUpdate = questions.find((q) => q.id === id);
     if (questionToUpdate) {
-      updateQuestion({ ...questionToUpdate, youtube: value });
+      updateQuestion({ ...questionToUpdate, [field]: value });
     }
   };
 
@@ -337,13 +340,15 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
         </button>
       </div>
       <div className="overflow-auto max-h-[70vh]">
-        <table className="min-w-full border">
+        <table className="min-w-full border text-sm">
           <thead>
             <tr>
               <th className="border px-2 py-1 text-left">#</th>
               <th className="border px-2 py-1 text-left">Question</th>
-              <th className="border px-2 py-1 text-left">Unlocked</th>
-              <th className="border px-2 py-1 text-left">YouTube Link</th>
+              <th className="border px-2 py-1 text-center">Unlocked</th>
+              <th className="border px-2 py-1 text-left">Answer Video</th>
+              <th className="border px-2 py-1 text-left">Song</th>
+              <th className="border px-2 py-1 text-left">Sermon</th>
             </tr>
           </thead>
           <tbody>
@@ -365,8 +370,26 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                     type="text"
                     className="border rounded w-full p-1 text-xs"
                     value={q.youtube || ''}
-                    onChange={(e) => handleLinkChange(q.id, e.target.value)}
+                    onChange={(e) => handleFieldChange(q.id, 'youtube', e.target.value)}
                     placeholder="Paste YouTube link here"
+                  />
+                </td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="text"
+                    className="border rounded w-full p-1 text-xs"
+                    value={q.song || ''}
+                    onChange={(e) => handleFieldChange(q.id, 'song', e.target.value)}
+                    placeholder="Paste Song link here"
+                  />
+                </td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="text"
+                    className="border rounded w-full p-1 text-xs"
+                    value={q.sermon || ''}
+                    onChange={(e) => handleFieldChange(q.id, 'sermon', e.target.value)}
+                    placeholder="Paste Sermon link here"
                   />
                 </td>
               </tr>
@@ -377,6 +400,7 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     </div>
   );
 }
+
 
 // =================================================================
 // LEARN VIEW
@@ -402,30 +426,70 @@ function LearnView({ questions, unlockedIds }) {
 // =================================================================
 function QuestionCard({ question }) {
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showSong, setShowSong] = useState(false);
+  const [showSermon, setShowSermon] = useState(false);
+
   return (
     <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">
-          {question.id}. {question.question}
-        </h2>
+      <h2 className="text-lg font-semibold">
+        {question.id}. {question.question}
+      </h2>
+
+      {/* Buttons row */}
+      <div className="flex space-x-2">
         <button
           className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
           onClick={() => setShowAnswer(!showAnswer)}
         >
           {showAnswer ? 'Hide' : 'Show'} Answer
         </button>
+
+        {question.song && (
+          <button
+            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+            onClick={() => setShowSong(!showSong)}
+          >
+            {showSong ? 'Hide Song' : 'Song'}
+          </button>
+        )}
+
+        {question.sermon && (
+          <button
+            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+            onClick={() => setShowSermon(!showSermon)}
+          >
+            {showSermon ? 'Hide Sermon' : '5 min sermon'}
+          </button>
+        )}
       </div>
+
+      {/* Answer */}
       {showAnswer && (
         <p className="text-gray-700 leading-relaxed">
           {question.answer}
         </p>
       )}
-      {question.youtube && (
+
+      {/* Song video */}
+      {showSong && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
           <iframe
             className="w-full h-48"
-            src={transformYouTubeURL(question.youtube)}
-            title="Memory Song"
+            src={transformYouTubeURL(question.song)}
+            title="Song"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          ></iframe>
+        </div>
+      )}
+
+      {/* Sermon video */}
+      {showSermon && (
+        <div className="mt-2 rounded-lg overflow-hidden shadow-md">
+          <iframe
+            className="w-full h-48"
+            src={transformYouTubeURL(question.sermon)}
+            title="Mini Sermon"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           ></iframe>
@@ -434,6 +498,7 @@ function QuestionCard({ question }) {
     </div>
   );
 }
+
 
 function transformYouTubeURL(url) {
   try {
