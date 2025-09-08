@@ -6,22 +6,31 @@ import GamesView from "./GamesView";
 import seedQuestions from "./catechism.json";
 
 export default function App() {
-  // ✅ State comes straight from JSON, no localStorage
-  const [questions] = useState(seedQuestions);
+  // ✅ wrap questions in a state object, but no localStorage
+  const [state] = useState({ questions: seedQuestions });
 
-  const unlocked = useMemo(() => questions.filter((q) => q.unlocked), [questions]);
-  const locked = useMemo(() => questions.filter((q) => !q.unlocked), [questions]);
+  const unlocked = useMemo(
+    () => state.questions.filter((q) => q.unlocked),
+    [state.questions]
+  );
+  const locked = useMemo(
+    () => state.questions.filter((q) => !q.unlocked),
+    [state.questions]
+  );
 
   const [tab, setTab] = useState("learn");
   const [activeId, setActiveId] = useState(unlocked[0]?.id ?? null);
-  const active = questions.find((q) => q.id === activeId) || unlocked[0];
+  const active =
+    state.questions.find((q) => q.id === activeId) || unlocked[0];
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-900">
       <header className="sticky top-0 z-40 backdrop-blur bg-white/80 border-b border-neutral-200">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
           <Sparkles className="w-6 h-6" />
-          <h1 className="font-semibold text-lg">Simple Christian Catechism</h1>
+          <h1 className="font-semibold text-lg">
+            Simple Christian Catechism
+          </h1>
           <div className="ml-auto flex items-center gap-2">
             <NavTab
               icon={<BookOpen className="w-4 h-4" />}
