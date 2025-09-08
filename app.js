@@ -181,27 +181,48 @@ function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
-        <span className="text-sm text-gray-600 mr-4">User: {user}</span>
-        <button
-          className={`px-3 py-1 rounded ${adminMode ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-          onClick={() => {
-            setAdminMode(!adminMode);
-            if (adminMode) setAdminAuth(false);
-          }}
-        >
-          {adminMode ? 'Close Admin' : 'Admin'}
-        </button>
-        <button
-          className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600"
-          onClick={() => {
-            setUser("");
-            localStorage.removeItem("catechismUser");
-          }}
-        >
-          Switch User
-        </button>
-      </footer>
+<footer className="bg-gray-100 border-t p-4 text-center space-x-2">
+  <span className="text-sm text-gray-600 mr-4">User: {user}</span>
+
+  {/* Admin toggle */}
+  <button
+    className={`px-3 py-1 rounded ${adminMode ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+    onClick={() => {
+      setAdminMode(!adminMode);
+      if (adminMode) setAdminAuth(false);
+    }}
+  >
+    {adminMode ? 'Close Admin' : 'Admin'}
+  </button>
+
+  {/* Switch User */}
+  <button
+    className="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600"
+    onClick={() => {
+      setUser("");
+      localStorage.removeItem("catechismUser");
+    }}
+  >
+    Switch User
+  </button>
+
+  {/* Delete User */}
+  <button
+    className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+    disabled={user.toLowerCase() === "admin"}
+    onClick={() => {
+      if (window.confirm("Are you sure you want to permanently delete this user?")) {
+        db.ref(`/users/${user}`).remove().then(() => {
+          localStorage.removeItem("catechismUser");
+          setUser("");
+        });
+      }
+    }}
+  >
+    Delete User
+  </button>
+</footer>
+
     </div>
   );
 }
