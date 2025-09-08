@@ -1,4 +1,4 @@
-// app.js - Firebase + Lightweight Identity (Global Admin Unlocks)
+// app.js - Firebase + Lightweight Identity (Global Admin Unlocks) + Custom Colours
 
 const { useState, useEffect } = React;
 
@@ -99,12 +99,10 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Update global unlockedIds
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
     db.ref(`/unlockedIds`).set(newUnlockedIds);
   };
 
-  // Update YouTube link in Firebase (global)
   const updateQuestionInFirebase = (updatedQuestion) => {
     db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
   };
@@ -118,7 +116,6 @@ function App() {
     }
   };
 
-  // If no nickname chosen, show user entry screen
   if (!user) {
     return <UserSelect onSubmit={(name) => {
       setUser(name);
@@ -126,11 +123,10 @@ function App() {
     }} />;
   }
 
-  // If admin mode active but not logged in
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Admin Login</h1>
+        <h1 className="text-2xl font-bold mb-4" style={{ color: '#ffbd59' }}>Admin Login</h1>
         <AdminLogin onSuccess={() => setAdminAuth(true)} onCancel={() => setAdminMode(false)} />
       </div>
     );
@@ -140,26 +136,28 @@ function App() {
     <div className="min-h-screen flex flex-col">
       {/* HEADER */}
       <header className="bg-white shadow">
-  <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-    <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left">
-      Simple Christian Catechism
-    </h1>
-    <nav className="flex flex-wrap justify-center gap-2">
-      <button
-        className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-        onClick={() => setView('learn')}
-      >
-        Learn
-      </button>
-      <button
-        className={`px-3 py-1 rounded ${view === 'games' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-        onClick={() => setView('games')}
-      >
-        Games
-      </button>
-    </nav>
-  </div>
-</header>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left" style={{ color: '#ffbd59' }}>
+            Simple Christian Catechism
+          </h1>
+          <nav className="flex flex-wrap justify-center gap-2">
+            <button
+              className="px-3 py-1 rounded text-white"
+              style={{ backgroundColor: view === 'learn' ? '#0097b2' : '#ccc' }}
+              onClick={() => setView('learn')}
+            >
+              Learn
+            </button>
+            <button
+              className="px-3 py-1 rounded text-white"
+              style={{ backgroundColor: view === 'games' ? '#0097b2' : '#ccc' }}
+              onClick={() => setView('games')}
+            >
+              Games
+            </button>
+          </nav>
+        </div>
+      </header>
 
       {/* MAIN */}
       <main className="flex-1 max-w-5xl mx-auto p-4">
@@ -183,54 +181,35 @@ function App() {
       </main>
 
       {/* FOOTER */}
-<footer className="bg-gray-100 border-t p-4 text-center space-x-2">
-  <span className="text-sm text-gray-600 mr-4">User: {user}</span>
-
-  {/* Admin toggle */}
-  <button
-    className={`px-3 py-1 rounded ${adminMode ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-    onClick={() => {
-      setAdminMode(!adminMode);
-      if (adminMode) setAdminAuth(false);
-    }}
-  >
-    {adminMode ? 'Close Admin' : 'Admin'}
-  </button>
-
-  {/* Switch User */}
-  <button
-    className="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600"
-    onClick={() => {
-      setUser("");
-      localStorage.removeItem("catechismUser");
-    }}
-  >
-    Switch User
-  </button>
-
-  {/* Delete User */}
-  <button
-    className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-    disabled={user.toLowerCase() === "admin"}
-    onClick={() => {
-      if (window.confirm("Are you sure you want to permanently delete this user?")) {
-        db.ref(`/users/${user}`).remove().then(() => {
-          localStorage.removeItem("catechismUser");
-          setUser("");
-        });
-      }
-    }}
-  >
-    Delete User
-  </button>
-</footer>
-
+      <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
+        <span className="text-sm text-gray-600 mr-4">User: {user}</span>
+        <button
+          className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: adminMode ? '#0097b2' : '#ccc' }}
+          onClick={() => {
+            setAdminMode(!adminMode);
+            if (adminMode) setAdminAuth(false);
+          }}
+        >
+          {adminMode ? 'Close Admin' : 'Admin'}
+        </button>
+        <button
+          className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: '#d9534f' }}
+          onClick={() => {
+            setUser("");
+            localStorage.removeItem("catechismUser");
+          }}
+        >
+          Switch User
+        </button>
+      </footer>
     </div>
   );
 }
 
 // =================================================================
-// USER SELECTION SCREEN (with duplicate check)
+// USER SELECTION SCREEN
 // =================================================================
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
@@ -244,7 +223,6 @@ function UserSelect({ onSubmit }) {
     if (!nickname) return;
 
     if (nickname === "admin") {
-      // Force Admin PIN flow
       setIsAdminLogin(true);
       return;
     }
@@ -272,7 +250,6 @@ function UserSelect({ onSubmit }) {
     }
   };
 
-  // Normal nickname form
   if (!isAdminLogin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -280,7 +257,7 @@ function UserSelect({ onSubmit }) {
           onSubmit={handleSubmit}
           className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
         >
-          <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
+          <h1 className="text-xl font-semibold text-center" style={{ color: '#ffbd59' }}>Pick a nickname</h1>
           <input
             type="text"
             placeholder="Enter your nickname"
@@ -291,7 +268,8 @@ function UserSelect({ onSubmit }) {
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            className="w-full text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#0097b2' }}
           >
             Continue
           </button>
@@ -300,14 +278,13 @@ function UserSelect({ onSubmit }) {
     );
   }
 
-  // Admin PIN form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <form
         onSubmit={handleAdminLogin}
         className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
       >
-        <h1 className="text-xl font-semibold text-center">Admin Login</h1>
+        <h1 className="text-xl font-semibold text-center" style={{ color: '#ffbd59' }}>Admin Login</h1>
         <input
           type="password"
           placeholder="Enter Admin PIN"
@@ -318,13 +295,14 @@ function UserSelect({ onSubmit }) {
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <button
           type="submit"
-          className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="w-full text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
         >
           Login as Admin
         </button>
         <button
           type="button"
-          className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+          className="w-full px-4 py-2 rounded bg-gray-300"
           onClick={() => setIsAdminLogin(false)}
         >
           Back
@@ -335,7 +313,7 @@ function UserSelect({ onSubmit }) {
 }
 
 // =================================================================
-// ADMIN LOGIN
+// ADMIN LOGIN (inline mode, not nickname entry)
 // =================================================================
 function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState('');
@@ -359,7 +337,7 @@ function AdminLogin({ onSuccess, onCancel }) {
         />
       </div>
       <div className="flex space-x-2">
-        <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+        <button type="submit" className="text-white px-4 py-2 rounded" style={{ backgroundColor: '#0097b2' }}>
           Login
         </button>
         <button
@@ -373,10 +351,6 @@ function AdminLogin({ onSuccess, onCancel }) {
     </form>
   );
 }
-
-// =================================================================
-// ADMIN VIEW (global unlocks apply to all users)
-// =================================================================
 // =================================================================
 // ADMIN VIEW (global unlocks apply to all users)
 // =================================================================
@@ -391,10 +365,10 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     setUnlockedIds(newUnlockedIds);
   };
 
-  const handleFieldChange = (id, field, value) => {
+  const handleLinkChange = (id, value) => {
     const questionToUpdate = questions.find((q) => q.id === id);
     if (questionToUpdate) {
-      updateQuestion({ ...questionToUpdate, [field]: value });
+      updateQuestion({ ...questionToUpdate, youtube: value });
     }
   };
 
@@ -407,28 +381,28 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     <div className="space-y-4">
       <div className="flex space-x-2">
         <button
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={handleUnlockNext}
         >
           Unlock Next
         </button>
         <button
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#ffbd59', color: '#000' }}
           onClick={unlockAll}
         >
           Unlock All
         </button>
       </div>
       <div className="overflow-auto max-h-[70vh]">
-        <table className="min-w-full border text-sm">
+        <table className="min-w-full border">
           <thead>
-            <tr>
+            <tr style={{ backgroundColor: '#f9f9f9' }}>
               <th className="border px-2 py-1 text-left">#</th>
               <th className="border px-2 py-1 text-left">Question</th>
-              <th className="border px-2 py-1 text-center">Unlocked</th>
-              <th className="border px-2 py-1 text-left">Answer Video</th>
-              <th className="border px-2 py-1 text-left">Song</th>
-              <th className="border px-2 py-1 text-left">Sermon</th>
+              <th className="border px-2 py-1 text-left">Unlocked</th>
+              <th className="border px-2 py-1 text-left">YouTube Link</th>
             </tr>
           </thead>
           <tbody>
@@ -450,26 +424,8 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                     type="text"
                     className="border rounded w-full p-1 text-xs"
                     value={q.youtube || ''}
-                    onChange={(e) => handleFieldChange(q.id, 'youtube', e.target.value)}
+                    onChange={(e) => handleLinkChange(q.id, e.target.value)}
                     placeholder="Paste YouTube link here"
-                  />
-                </td>
-                <td className="border px-2 py-1">
-                  <input
-                    type="text"
-                    className="border rounded w-full p-1 text-xs"
-                    value={q.song || ''}
-                    onChange={(e) => handleFieldChange(q.id, 'song', e.target.value)}
-                    placeholder="Paste Song link here"
-                  />
-                </td>
-                <td className="border px-2 py-1">
-                  <input
-                    type="text"
-                    className="border rounded w-full p-1 text-xs"
-                    value={q.sermon || ''}
-                    onChange={(e) => handleFieldChange(q.id, 'sermon', e.target.value)}
-                    placeholder="Paste Sermon link here"
                   />
                 </td>
               </tr>
@@ -480,7 +436,6 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     </div>
   );
 }
-
 
 // =================================================================
 // LEARN VIEW
@@ -493,7 +448,9 @@ function LearnView({ questions, unlockedIds }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">Unlocked {unlocked.length} of {questions.length} questions</p>
+      <p className="text-sm" style={{ color: '#0097b2' }}>
+        Unlocked {unlocked.length} of {questions.length} questions
+      </p>
       {unlocked.map((q) => (
         <QuestionCard key={q.id} question={q} />
       ))}
@@ -511,14 +468,15 @@ function QuestionCard({ question }) {
 
   return (
     <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
-      <h2 className="text-lg font-semibold">
+      <h2 className="text-lg font-semibold" style={{ color: '#ffbd59' }}>
         {question.id}. {question.question}
       </h2>
 
       {/* Buttons row */}
-      <div className="flex space-x-2">
+      <div className="flex flex-wrap gap-2">
         <button
-          className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+          className="text-white px-3 py-1 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={() => setShowAnswer(!showAnswer)}
         >
           {showAnswer ? 'Hide' : 'Show'} Answer
@@ -526,7 +484,8 @@ function QuestionCard({ question }) {
 
         {question.song && (
           <button
-            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+            className="text-white px-3 py-1 rounded"
+            style={{ backgroundColor: '#0097b2' }}
             onClick={() => setShowSong(!showSong)}
           >
             {showSong ? 'Hide Song' : 'Song'}
@@ -535,7 +494,8 @@ function QuestionCard({ question }) {
 
         {question.sermon && (
           <button
-            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+            className="text-white px-3 py-1 rounded"
+            style={{ backgroundColor: '#0097b2' }}
             onClick={() => setShowSermon(!showSermon)}
           >
             {showSermon ? 'Hide Sermon' : '5 min sermon'}
@@ -578,23 +538,6 @@ function QuestionCard({ question }) {
     </div>
   );
 }
-
-
-function transformYouTubeURL(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes('youtube.com')) {
-      const v = u.searchParams.get('v');
-      if (v) return `https://www.youtube.com/embed/${v}`;
-    }
-    if (u.hostname === 'youtu.be') {
-      return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
-    }
-    return url;
-  } catch (e) {
-    return url;
-  }
-}
 // =================================================================
 // GAMES VIEW
 // =================================================================
@@ -608,22 +551,27 @@ function GamesView({ questions, unlockedIds }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">Unlocked {unlocked.length} of {questions.length} questions</p>
-      <div className="space-x-2 mb-4">
+      <p className="text-sm" style={{ color: '#0097b2' }}>
+        Unlocked {unlocked.length} of {questions.length} questions
+      </p>
+      <div className="flex flex-wrap gap-2 mb-4">
         <button
-          className={`px-3 py-1 rounded ${mode === 'mcq' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+          className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: mode === 'mcq' ? '#0097b2' : '#ccc' }}
           onClick={() => setMode('mcq')}
         >
           Multiple Choice
         </button>
         <button
-          className={`px-3 py-1 rounded ${mode === 'fill' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+          className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: mode === 'fill' ? '#0097b2' : '#ccc' }}
           onClick={() => setMode('fill')}
         >
           Fill in the Blank
         </button>
         <button
-          className={`px-3 py-1 rounded ${mode === 'flash' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+          className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: mode === 'flash' ? '#0097b2' : '#ccc' }}
           onClick={() => setMode('flash')}
         >
           Flashcards
@@ -672,9 +620,10 @@ function MCQGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p>You scored {score} out of {questions.length}.</p>
+        <p style={{ color: '#ffbd59' }}>You scored {score} out of {questions.length}.</p>
         <button
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
             setSelected(null);
@@ -690,7 +639,7 @@ function MCQGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold">
+      <div className="font-semibold" style={{ color: '#ffbd59' }}>
         Question {index + 1} of {questions.length}
       </div>
       <div className="bg-white p-4 shadow rounded">
@@ -699,14 +648,17 @@ function MCQGame({ questions }) {
           {options.map((option, i) => (
             <button
               key={i}
-              className={`block w-full text-left px-3 py-2 rounded border 
-                ${selected === null 
-                  ? 'bg-gray-100' 
-                  : option === questions[index].answer 
-                    ? 'bg-green-200' 
-                    : option === selected 
-                      ? 'bg-red-200' 
-                      : 'bg-gray-100'}`}
+              className={`block w-full text-left px-3 py-2 rounded border`}
+              style={{
+                backgroundColor:
+                  selected === null
+                    ? '#f3f4f6'
+                    : option === questions[index].answer
+                    ? '#a5d6a7' // green for correct
+                    : option === selected
+                    ? '#ef9a9a' // red for wrong
+                    : '#f3f4f6',
+              }}
               onClick={() => handleSelect(option)}
             >
               {option}
@@ -715,7 +667,8 @@ function MCQGame({ questions }) {
         </div>
         {selected !== null && (
           <button
-            className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            className="mt-4 text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#0097b2' }}
             onClick={next}
           >
             Next
@@ -766,9 +719,10 @@ function FillBlankGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p>You scored {score} out of {questions.length}.</p>
+        <p style={{ color: '#ffbd59' }}>You scored {score} out of {questions.length}.</p>
         <button
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
             setScore(0);
@@ -788,7 +742,7 @@ function FillBlankGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold">
+      <div className="font-semibold" style={{ color: '#ffbd59' }}>
         Question {index + 1} of {questions.length}
       </div>
       <div className="bg-white p-4 shadow rounded">
@@ -798,7 +752,8 @@ function FillBlankGame({ questions }) {
           {data.options.map((word, idx) => (
             <button
               key={idx}
-              className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+              className="px-2 py-1 rounded"
+              style={{ backgroundColor: '#f3f4f6' }}
               onClick={() => fillWord(word)}
             >
               {word}
@@ -806,7 +761,8 @@ function FillBlankGame({ questions }) {
           ))}
         </div>
         <button
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={checkAnswer}
         >
           {index + 1 < questions.length ? 'Next' : 'Finish'}
@@ -836,9 +792,10 @@ function FlashcardsGame({ questions }) {
   if (completed) {
     return (
       <div className="space-y-4">
-        <p>You've gone through all flashcards.</p>
+        <p style={{ color: '#ffbd59' }}>You've gone through all flashcards.</p>
         <button
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
             setIndex(0);
             setShowAnswer(false);
@@ -853,7 +810,7 @@ function FlashcardsGame({ questions }) {
 
   return (
     <div className="space-y-4">
-      <div className="font-semibold">
+      <div className="font-semibold" style={{ color: '#ffbd59' }}>
         Card {index + 1} of {questions.length}
       </div>
       <div
@@ -874,7 +831,8 @@ function FlashcardsGame({ questions }) {
         )}
       </div>
       <button
-        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+        className="text-white px-4 py-2 rounded"
+        style={{ backgroundColor: '#0097b2' }}
         onClick={next}
       >
         {index + 1 < questions.length ? 'Next' : 'Finish'}
