@@ -1,4 +1,4 @@
-// app.js - Modified for Firebase + Lightweight Identity
+// app.js - Firebase + Lightweight Identity (Global Admin Unlocks)
 
 const { useState, useEffect } = React;
 
@@ -79,21 +79,16 @@ function App() {
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // NEW: User nickname state
   const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
 
-  // Fetch questions when app loads
+  // Fetch data from Firebase
   useEffect(() => {
     const unsubscribe = dbRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const allQuestions = (data.questions || []).filter(Boolean);
         setQuestions(allQuestions);
-
-        // Load this user's unlockedIds
-        if (user && data.users && data.users[user]) {
-          setUnlockedIds(data.users[user].unlockedIds || []);
-        }
+        setUnlockedIds(data.unlockedIds || []); // global unlocks
       } else {
         setLoadError('No data found in the database.');
       }
@@ -101,17 +96,15 @@ function App() {
       console.error(error);
       setLoadError(error.message);
     });
-
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
-  // Save unlockedIds per user in Firebase
+  // Update global unlockedIds
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
-    if (!user) return;
-    db.ref(`/users/${user}/unlockedIds`).set(newUnlockedIds);
+    db.ref(`/unlockedIds`).set(newUnlockedIds);
   };
 
-  // Update YouTube link in Firebase (global to all users)
+  // Update YouTube link in Firebase (global)
   const updateQuestionInFirebase = (updatedQuestion) => {
     db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
   };
@@ -212,16 +205,28 @@ function App() {
     </div>
   );
 }
+
 // =================================================================
-// USER SELECTION SCREEN
+// USER SELECTION SCREEN (with duplicate check)
 // =================================================================
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSubmit(name.trim().toLowerCase()); // store in lowercase for consistency
+    const nickname = name.trim().toLowerCase();
+    if (!nickname) return;
+
+    const snapshot = await db.ref(`/users/${nickname}`).once("value");
+    if (snapshot.exists()) {
+      setError("That nickname is taken, please pick another.");
+      return;
+    }
+
+    // Create user branch immediately
+    db.ref(`/users/${nickname}`).set({ created: Date.now() });
+    onSubmit(nickname);
   };
 
   return (
@@ -230,14 +235,15 @@ function UserSelect({ onSubmit }) {
         onSubmit={handleSubmit}
         className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
       >
-        <h1 className="text-xl font-semibold text-center">Who are you?</h1>
+        <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
         <input
           type="text"
-          placeholder="Enter your name"
+          placeholder="Enter your nickname"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="border rounded w-full p-2"
         />
+        {error && <p className="text-red-600 text-sm">{error}</p>}
         <button
           type="submit"
           className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
@@ -248,7 +254,6 @@ function UserSelect({ onSubmit }) {
     </div>
   );
 }
-
 // =================================================================
 // ADMIN LOGIN
 // =================================================================
@@ -290,7 +295,7 @@ function AdminLogin({ onSuccess, onCancel }) {
 }
 
 // =================================================================
-// ADMIN VIEW
+// ADMIN VIEW (global unlocks apply to all users)
 // =================================================================
 function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
   const toggleUnlocked = (id) => {
