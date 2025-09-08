@@ -1,22 +1,22 @@
-// app.js - Modified for Firebase
+// app.js - Full updated script with UI enhancements
 
 const { useState, useEffect } = React;
 
 // =================================================================
 // 1. INITIALIZE FIREBASE
 // =================================================================
+// PASTE YOUR FIREBASE CONFIG HERE
 const firebaseConfig = {
-  apiKey: "AIzaSyAlZ5IsphN3IOLOKoGvQecJfEunjwbeolw",
-  authDomain: "simplechristiancatechism.firebaseapp.com",
-  databaseURL: "https://simplechristiancatechism-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "simplechristiancatechism",
-  storageBucket: "simplechristiancatechism.appspot.com",
-  messagingSenderId: "605718866345",
-  appId: "1:605718866345:web:60c9e790e5148ff78fbcb8",
-  measurementId: "G-JKY86F4M6H"
+  apiKey: "AIzaSy...",
+  authDomain: "your-project-id.firebaseapp.com",
+  databaseURL: "https://your-project-id-default-rtdb.firebaseio.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "...",
+  appId: "1:..."
 };
 
-// Initialize Firebase using the global 'firebase' object from the script tag
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const dbRef = db.ref('/');
@@ -77,13 +77,10 @@ function App() {
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // Fetch data from Firebase on mount and listen for changes
   useEffect(() => {
-    // onValue is a real-time listener.
     const unsubscribe = dbRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Firebase returns an array-like object. We filter out the null at index 0.
         const allQuestions = (data.questions || []).filter(Boolean);
         setQuestions(allQuestions);
         setUnlockedIds(data.unlockedIds || []);
@@ -95,21 +92,17 @@ function App() {
       setLoadError(error.message);
     });
     
-    // Cleanup listener on component unmount
     return () => unsubscribe();
   }, []);
 
-  // Write changes to unlockedIds back to Firebase
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
     db.ref('/unlockedIds').set(newUnlockedIds);
   };
   
-  // Write changes to a specific question (e.g., YouTube link)
   const updateQuestionInFirebase = (updatedQuestion) => {
     db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
   };
   
-  // Determine unlocked questions
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
 
   const handleUnlockNext = () => {
@@ -134,7 +127,7 @@ function App() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Simple Christian Catechism</h1>
+          <h1 className="text-xl font-semibold">Catechism Learning Tool</h1>
           <nav className="space-x-2">
             <button
               className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
@@ -148,19 +141,10 @@ function App() {
             >
               Games
             </button>
-            <button
-              className={`px-3 py-1 rounded ${adminMode ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-              onClick={() => {
-                setAdminMode(!adminMode);
-                if (adminMode) setAdminAuth(false); // Log out on close
-              }}
-            >
-              {adminMode ? 'Close Admin' : 'Admin'}
-            </button>
           </nav>
         </div>
       </header>
-      <main className="flex-1 max-w-5xl mx-auto p-4">
+      <main className="flex-1 max-w-5xl mx-auto p-4 w-full">
         {loadError ? (
           <div className="text-red-600">Error loading data: {loadError}</div>
         ) : questions.length === 0 ? (
@@ -179,6 +163,19 @@ function App() {
           <GamesView questions={questions} unlockedIds={unlockedIds} />
         )}
       </main>
+      <footer className="py-4">
+        <div className="text-center">
+          <button
+            className={`px-4 py-2 rounded text-sm ${adminMode ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => {
+              setAdminMode(!adminMode);
+              if (adminMode) setAdminAuth(false);
+            }}
+          >
+            {adminMode ? 'Close Admin' : 'Admin Panel'}
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -319,32 +316,34 @@ function LearnView({ questions, unlockedIds }) {
 function QuestionCard({ question }) {
   const [showAnswer, setShowAnswer] = useState(false);
   return (
-    <div className="bg-white shadow rounded p-4 space-y-2">
+    <div className="bg-white shadow-md rounded-lg p-4 space-y-3 border border-gray-200 transition-shadow duration-200 hover:shadow-lg">
       <div className="flex justify-between items-center">
-        <h2 className="font-semibold">
+        <h2 className="font-semibold text-lg">
           {question.id}. {question.question}
         </h2>
         <button
-          className="text-blue-600 underline"
+          className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm font-semibold shadow-sm hover:bg-blue-600"
           onClick={() => setShowAnswer(!showAnswer)}
         >
           {showAnswer ? 'Hide' : 'Show'} Answer
         </button>
       </div>
       {showAnswer && (
-        <p className="text-gray-800">
-          {question.answer}
-        </p>
-      )}
-      {question.youtube && (
-        <div className="mt-2">
-          <iframe
-            className="w-full h-48"
-            src={transformYouTubeURL(question.youtube)}
-            title="Memory Song"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+        <div className="pt-2">
+          <p className="text-gray-800">
+            {question.answer}
+          </p>
+          {question.youtube && (
+            <div className="mt-4">
+              <iframe
+                className="w-full h-48 rounded"
+                src={transformYouTubeURL(question.youtube)}
+                title="Memory Song"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -410,7 +409,6 @@ function MCQGame({ questions }) {
   const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    // Reset game when questions or index changes
     if (questions.length > 0) {
       setOptions(getMultipleChoiceOptions(questions, index));
     }
@@ -496,7 +494,6 @@ function FillBlankGame({ questions }) {
   }, [questions, index]);
 
   const fillWord = (word) => {
-    // find first empty slot in filled array
     const idx = data.blanks.findIndex((b, i) => b.hidden && filled[i] === '');
     if (idx === -1) return;
     const newFilled = [...filled];
@@ -505,7 +502,6 @@ function FillBlankGame({ questions }) {
   };
 
   const checkAnswer = () => {
-    // compare filled words with original
     const isCorrect = data.blanks.every((b, i) => (!b.hidden || b.original === filled[i]));
     if (isCorrect) setScore(score + 1);
     if (index + 1 < questions.length) {
@@ -533,7 +529,6 @@ function FillBlankGame({ questions }) {
       </div>
     );
   }
-  // Build displayed sentence with blanks replaced by either filled word or underscores
   const displaySentence = data.blanks.map((b, i) => {
     if (!b.hidden) return b.original;
     return filled[i] || '____';
@@ -632,5 +627,4 @@ function FlashcardsGame({ questions }) {
   );
 }
 
-// Mount the React application
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
