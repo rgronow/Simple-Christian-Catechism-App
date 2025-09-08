@@ -134,7 +134,7 @@ function App() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Catechism Learning Tool</h1>
+          <h1 className="text-xl font-semibold">Simple Christian Catechism</h1>
           <nav className="space-x-2">
             <button
               className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
