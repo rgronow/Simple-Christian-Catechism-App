@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Catechism Learning Tool</title>
-    <!-- Tailwind CSS via CDN for quick styling -->
     <link
       href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
       rel="stylesheet"
@@ -12,7 +11,7 @@
   </head>
   <body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
     <div id="root" class="flex-1"></div>
-    <!-- React and ReactDOM UMD builds -->
+
     <script
       src="https://unpkg.com/react@18/umd/react.development.js"
       crossorigin
@@ -21,14 +20,17 @@
       src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
       crossorigin
     ></script>
-    <!-- Babel for in-browser JSX compilation -->
+
     <script
       src="https://unpkg.com/@babel/standalone/babel.min.js"
       crossorigin
     ></script>
-    <!-- Utilities (must be loaded before app.js) -->
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
     <script type="text/babel" src="./utils.js"></script>
-    <!-- Main application script -->
     <script type="text/babel" src="./app.js"></script>
+    
   </body>
 </html>
