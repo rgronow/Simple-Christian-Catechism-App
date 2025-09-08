@@ -9,7 +9,7 @@ const { useState, useEffect } = React;
 const firebaseConfig = {
    apiKey: "AIzaSyAlZ5IsphN3IOLOKoGvQecJfEunjwbeolw",
   authDomain: "simplechristiancatechism.firebaseapp.com",
-  databaseURL: "https://simplechristiancatechism-default-rtdb.europe-west1.firebasedatabase.app/",
+  databaseURL: "https://simplechristiancatechism-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "simplechristiancatechism",
   storageBucket: "simplechristiancatechism.appspot.com",
   messagingSenderId: "605718866345",
