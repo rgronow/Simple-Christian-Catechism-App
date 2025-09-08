@@ -1,4 +1,4 @@
-// app.js - Modified for Firebase
+// app.js - Modified for Firebase + Lightweight Identity
 
 const { useState, useEffect } = React;
 
@@ -16,13 +16,12 @@ const firebaseConfig = {
   measurementId: "G-JKY86F4M6H"
 };
 
-// Initialize Firebase using the global 'firebase' object from the script tag
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const dbRef = db.ref('/');
 
 // =================================================================
-// Utility functions (These are still needed by the game logic)
+// Utility functions
 // =================================================================
 
 function shuffle(array) {
@@ -80,14 +79,21 @@ function App() {
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // Fetch data from Firebase on mount and listen for changes
+  // NEW: User nickname state
+  const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
+
+  // Fetch questions when app loads
   useEffect(() => {
     const unsubscribe = dbRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const allQuestions = (data.questions || []).filter(Boolean);
         setQuestions(allQuestions);
-        setUnlockedIds(data.unlockedIds || []);
+
+        // Load this user's unlockedIds
+        if (user && data.users && data.users[user]) {
+          setUnlockedIds(data.users[user].unlockedIds || []);
+        }
       } else {
         setLoadError('No data found in the database.');
       }
@@ -95,22 +101,23 @@ function App() {
       console.error(error);
       setLoadError(error.message);
     });
-    
-    return () => unsubscribe();
-  }, []);
 
+    return () => unsubscribe();
+  }, [user]);
+
+  // Save unlockedIds per user in Firebase
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
-    db.ref('/unlockedIds').set(newUnlockedIds);
+    if (!user) return;
+    db.ref(`/users/${user}/unlockedIds`).set(newUnlockedIds);
   };
-  
+
+  // Update YouTube link in Firebase (global to all users)
   const updateQuestionInFirebase = (updatedQuestion) => {
     db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
   };
-  
-  const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
 
   const handleUnlockNext = () => {
-    const sortedQuestions = [...questions].sort((a,b) => a.id - b.id);
+    const sortedQuestions = [...questions].sort((a, b) => a.id - b.id);
     const locked = sortedQuestions.find((q) => !unlockedIds.includes(q.id));
     if (locked) {
       const newUnlockedIds = [...unlockedIds, locked.id];
@@ -118,6 +125,15 @@ function App() {
     }
   };
 
+  // If no nickname chosen, show user entry screen
+  if (!user) {
+    return <UserSelect onSubmit={(name) => {
+      setUser(name);
+      localStorage.setItem("catechismUser", name);
+    }} />;
+  }
+
+  // If admin mode active but not logged in
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
@@ -172,7 +188,8 @@ function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-gray-100 border-t p-4 text-center">
+      <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
+        <span className="text-sm text-gray-600 mr-4">User: {user}</span>
         <button
           className={`px-3 py-1 rounded ${adminMode ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
           onClick={() => {
@@ -182,10 +199,59 @@ function App() {
         >
           {adminMode ? 'Close Admin' : 'Admin'}
         </button>
+        <button
+          className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600"
+          onClick={() => {
+            setUser("");
+            localStorage.removeItem("catechismUser");
+          }}
+        >
+          Switch User
+        </button>
       </footer>
     </div>
   );
 }
+// =================================================================
+// USER SELECTION SCREEN
+// =================================================================
+function UserSelect({ onSubmit }) {
+  const [name, setName] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit(name.trim().toLowerCase()); // store in lowercase for consistency
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
+      >
+        <h1 className="text-xl font-semibold text-center">Who are you?</h1>
+        <input
+          type="text"
+          placeholder="Enter your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="border rounded w-full p-2"
+        />
+        <button
+          type="submit"
+          className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+        >
+          Continue
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// =================================================================
+// ADMIN LOGIN
+// =================================================================
 function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState('');
   const handleSubmit = (e) => {
@@ -223,8 +289,10 @@ function AdminLogin({ onSuccess, onCancel }) {
   );
 }
 
+// =================================================================
+// ADMIN VIEW
+// =================================================================
 function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
-
   const toggleUnlocked = (id) => {
     let newUnlockedIds;
     if (unlockedIds.includes(id)) {
@@ -305,13 +373,18 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
   );
 }
 
+// =================================================================
+// LEARN VIEW
+// =================================================================
 function LearnView({ questions, unlockedIds }) {
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
   if (unlocked.length === 0) {
     return <div>No questions unlocked yet. Please unlock in admin.</div>;
   }
+
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-600">Unlocked {unlocked.length} of {questions.length} questions</p>
       {unlocked.map((q) => (
         <QuestionCard key={q.id} question={q} />
       ))}
@@ -319,6 +392,9 @@ function LearnView({ questions, unlockedIds }) {
   );
 }
 
+// =================================================================
+// QUESTION CARD
+// =================================================================
 function QuestionCard({ question }) {
   const [showAnswer, setShowAnswer] = useState(false);
   return (
@@ -369,18 +445,20 @@ function transformYouTubeURL(url) {
     return url;
   }
 }
-
-// GamesView, MCQGame, FillBlankGame, FlashcardsGame remain unchanged
-// (just styled with purple buttons instead of blue for consistency)
-
+// =================================================================
+// GAMES VIEW
+// =================================================================
 function GamesView({ questions, unlockedIds }) {
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
   const [mode, setMode] = useState('mcq');
+
   if (unlocked.length === 0) {
     return <div>No unlocked questions available for games.</div>;
   }
+
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-600">Unlocked {unlocked.length} of {questions.length} questions</p>
       <div className="space-x-2 mb-4">
         <button
           className={`px-3 py-1 rounded ${mode === 'mcq' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
@@ -408,6 +486,9 @@ function GamesView({ questions, unlockedIds }) {
   );
 }
 
+// =================================================================
+// MULTIPLE CHOICE GAME
+// =================================================================
 function MCQGame({ questions }) {
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState([]);
@@ -483,7 +564,10 @@ function MCQGame({ questions }) {
           ))}
         </div>
         {selected !== null && (
-          <button className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700" onClick={next}>
+          <button
+            className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            onClick={next}
+          >
             Next
           </button>
         )}
@@ -492,6 +576,9 @@ function MCQGame({ questions }) {
   );
 }
 
+// =================================================================
+// FILL IN THE BLANK GAME
+// =================================================================
 function FillBlankGame({ questions }) {
   const [index, setIndex] = useState(0);
   const [data, setData] = useState(null);
@@ -579,6 +666,9 @@ function FillBlankGame({ questions }) {
   );
 }
 
+// =================================================================
+// FLASHCARDS GAME
+// =================================================================
 function FlashcardsGame({ questions }) {
   const [index, setIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -643,5 +733,7 @@ function FlashcardsGame({ questions }) {
   );
 }
 
-// Mount the React application
+// =================================================================
+// MOUNT APP
+// =================================================================
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
