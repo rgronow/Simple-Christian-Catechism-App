@@ -1,42 +1,29 @@
-/*
-  Main application for the Catechism learning tool. This implementation
-  uses React (loaded from a CDN) and Tailwind for styling. The site
-  provides three primary views: Learn, Games and Admin. State is
-  persisted to localStorage so unlocked questions persist across
-  sessions.
-
-  The game logic is simple and self‑contained. For multiple choice
-  questions and fill‑in‑the‑blank exercises, distractor answers and
-  words are drawn from other unlocked questions. Flashcards simply
-  flip between question and answer.
-
-  To customise the content, edit catechism.json and add or update
-  YouTube URLs in the Admin view. All questions are present in the
-  data file but only those marked as unlocked will show up in the
-  Learn and Games views.
-*/
+// app.js - Modified for Firebase
 
 const { useState, useEffect } = React;
 
-// Utility functions. These mirror the definitions in utils.js but are
-// redefined here for simplicity in the browser environment.
-function loadState() {
-  try {
-    const raw = localStorage.getItem('catechismAppState');
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    console.warn('Failed to parse saved state', e);
-    return {};
-  }
-}
+// =================================================================
+// 1. INITIALIZE FIREBASE
+// =================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAlZ5IsphN3IOLOKoGvQecJfEunjwbeolw",
+  authDomain: "simplechristiancatechism.firebaseapp.com",
+  databaseURL: "https://simplechristiancatechism-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "simplechristiancatechism",
+  storageBucket: "simplechristiancatechism.appspot.com",
+  messagingSenderId: "605718866345",
+  appId: "1:605718866345:web:60c9e790e5148ff78fbcb8",
+  measurementId: "G-JKY86F4M6H"
+};
 
-function saveState(state) {
-  try {
-    localStorage.setItem('catechismAppState', JSON.stringify(state));
-  } catch (e) {
-    console.warn('Failed to save state', e);
-  }
-}
+// Initialize Firebase using the global 'firebase' object from the script tag
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const dbRef = db.ref('/');
+
+// =================================================================
+// Utility functions (These are still needed by the game logic)
+// =================================================================
 
 function shuffle(array) {
   const arr = array.slice();
@@ -59,7 +46,6 @@ function getMultipleChoiceOptions(questions, currentIndex, count = 4) {
 
 function generateFillBlankData(questions, currentIndex, blankCount = 3) {
   const answer = questions[currentIndex].answer;
-  // Split on whitespace but keep whitespace tokens so we can rebuild
   const words = answer.split(/(\s+)/);
   const wordIndices = words
     .map((w, idx) => (/\s/.test(w) ? null : idx))
@@ -82,6 +68,7 @@ function generateFillBlankData(questions, currentIndex, blankCount = 3) {
   return { blanks, options };
 }
 
+
 function App() {
   const [questions, setQuestions] = useState([]);
   const [unlockedIds, setUnlockedIds] = useState([]);
@@ -89,36 +76,51 @@ function App() {
   const [adminMode, setAdminMode] = useState(false);
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  // Fetch the catechism data on mount
-  useEffect(() => {
-    fetch('./catechism.json')
-      .then((res) => res.json())
-      .then((data) => {
-        // sort by id
-        data.sort((a, b) => (a.id || 0) - (b.id || 0));
-        setQuestions(data);
-      })
-      .catch((err) => setLoadError(err.message));
-    const saved = loadState();
-    if (saved.unlockedIds) {
-      setUnlockedIds(saved.unlockedIds);
-    }
-  }, []);
-  // Persist unlocked IDs whenever they change
-  useEffect(() => {
-    saveState({ unlockedIds });
-  }, [unlockedIds]);
 
+  // Fetch data from Firebase on mount and listen for changes
+  useEffect(() => {
+    // onValue is a real-time listener.
+    const unsubscribe = dbRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Firebase returns an array-like object. We filter out the null at index 0.
+        const allQuestions = (data.questions || []).filter(Boolean);
+        setQuestions(allQuestions);
+        setUnlockedIds(data.unlockedIds || []);
+      } else {
+        setLoadError('No data found in the database.');
+      }
+    }, (error) => {
+      console.error(error);
+      setLoadError(error.message);
+    });
+    
+    // Cleanup listener on component unmount
+    return () => unsubscribe();
+  }, []);
+
+  // Write changes to unlockedIds back to Firebase
+  const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
+    db.ref('/unlockedIds').set(newUnlockedIds);
+  };
+  
+  // Write changes to a specific question (e.g., YouTube link)
+  const updateQuestionInFirebase = (updatedQuestion) => {
+    db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
+  };
+  
   // Determine unlocked questions
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
 
   const handleUnlockNext = () => {
-    // find the first locked question in order
-    const locked = questions.find((q) => !unlockedIds.includes(q.id));
-    if (locked) setUnlockedIds([...unlockedIds, locked.id]);
+    const sortedQuestions = [...questions].sort((a,b) => a.id - b.id);
+    const locked = sortedQuestions.find((q) => !unlockedIds.includes(q.id));
+    if (locked) {
+      const newUnlockedIds = [...unlockedIds, locked.id];
+      updateUnlockedIdsInFirebase(newUnlockedIds);
+    }
   };
 
-  // Admin authentication prompt
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
@@ -148,7 +150,10 @@ function App() {
             </button>
             <button
               className={`px-3 py-1 rounded ${adminMode ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-              onClick={() => setAdminMode(!adminMode)}
+              onClick={() => {
+                setAdminMode(!adminMode);
+                if (adminMode) setAdminAuth(false); // Log out on close
+              }}
             >
               {adminMode ? 'Close Admin' : 'Admin'}
             </button>
@@ -164,9 +169,9 @@ function App() {
           <AdminView
             questions={questions}
             unlockedIds={unlockedIds}
-            setUnlockedIds={setUnlockedIds}
+            setUnlockedIds={updateUnlockedIdsInFirebase}
             handleUnlockNext={handleUnlockNext}
-            setQuestions={setQuestions}
+            updateQuestion={updateQuestionInFirebase}
           />
         ) : view === 'learn' ? (
           <LearnView questions={questions} unlockedIds={unlockedIds} />
@@ -215,33 +220,28 @@ function AdminLogin({ onSuccess, onCancel }) {
   );
 }
 
-function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, setQuestions }) {
-  const [working, setWorking] = useState(false);
+function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
 
   const toggleUnlocked = (id) => {
+    let newUnlockedIds;
     if (unlockedIds.includes(id)) {
-      setUnlockedIds(unlockedIds.filter((uid) => uid !== id));
+      newUnlockedIds = unlockedIds.filter((uid) => uid !== id);
     } else {
-      setUnlockedIds([...unlockedIds, id]);
+      newUnlockedIds = [...unlockedIds, id];
     }
+    setUnlockedIds(newUnlockedIds);
   };
 
   const handleLinkChange = (id, value) => {
-    const updated = questions.map((q) =>
-      q.id === id ? { ...q, youtube: value } : q
-    );
-    setQuestions(updated);
+    const questionToUpdate = questions.find((q) => q.id === id);
+    if (questionToUpdate) {
+      updateQuestion({ ...questionToUpdate, youtube: value });
+    }
   };
 
-  // Persist youtube links to localStorage as part of state
-  useEffect(() => {
-    // Save questions to localStorage as part of state for youtube links
-    const state = loadState();
-    saveState({ ...state, questions });
-  }, [questions]);
-
   const unlockAll = () => {
-    setUnlockedIds(questions.map((q) => q.id));
+    const allIds = questions.map((q) => q.id);
+    setUnlockedIds(allIds);
   };
 
   return (
@@ -351,7 +351,6 @@ function QuestionCard({ question }) {
   );
 }
 
-// Convert a YouTube share/link to an embeddable URL
 function transformYouTubeURL(url) {
   try {
     const u = new URL(url);
