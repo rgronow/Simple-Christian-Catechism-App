@@ -140,24 +140,26 @@ function App() {
     <div className="min-h-screen flex flex-col">
       {/* HEADER */}
       <header className="bg-white shadow">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Simple Christian Catechism</h1>
-          <nav className="space-x-2">
-            <button
-              className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-              onClick={() => setView('learn')}
-            >
-              Learn
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${view === 'games' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-              onClick={() => setView('games')}
-            >
-              Games
-            </button>
-          </nav>
-        </div>
-      </header>
+  <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left">
+      Simple Christian Catechism
+    </h1>
+    <nav className="flex flex-wrap justify-center gap-2">
+      <button
+        className={`px-3 py-1 rounded ${view === 'learn' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+        onClick={() => setView('learn')}
+      >
+        Learn
+      </button>
+      <button
+        className={`px-3 py-1 rounded ${view === 'games' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+        onClick={() => setView('games')}
+      >
+        Games
+      </button>
+    </nav>
+  </div>
+</header>
 
       {/* MAIN */}
       <main className="flex-1 max-w-5xl mx-auto p-4">
