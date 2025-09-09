@@ -1,4 +1,4 @@
-// app.js - Firebase + Lightweight Identity (Global Admin Unlocks, 3 Video Fields, Themed Header)
+// app.js - Firebase + Lightweight Identity (Guest optional) + Themed Header + 3 Video Fields
 
 const { useState, useEffect } = React;
 
@@ -21,7 +21,7 @@ const db = firebase.database();
 const dbRef = db.ref('/');
 
 // =================================================================
-// Utility functions
+/* Utility functions */
 // =================================================================
 function shuffle(array) {
   const arr = array.slice();
@@ -74,7 +74,13 @@ function App() {
   const [adminMode, setAdminMode] = useState(false);
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
+
+  // Allow nickname OR anonymous guest
+  const [user, setUser] = useState(
+    localStorage.getItem("catechismUser") ||
+    sessionStorage.getItem("catechismGuest") ||
+    ""
+  );
 
   useEffect(() => {
     const unsubscribe = dbRef.on('value', (snapshot) => {
@@ -107,19 +113,26 @@ function App() {
     if (locked) updateUnlockedIdsInFirebase([...unlockedIds, locked.id]);
   };
 
-  // Gate on user nickname
+  const isGuest = user === "__guest__";
+  const displayName = isGuest ? "Guest (anonymous)" : user;
+
+  // Gate on user nickname/guest
   if (!user) {
     return (
       <UserSelect
         onSubmit={(name) => {
           setUser(name);
-          localStorage.setItem("catechismUser", name);
+          if (name === "__guest__") {
+            sessionStorage.setItem("catechismGuest", "__guest__");
+          } else {
+            localStorage.setItem("catechismUser", name);
+          }
         }}
       />
     );
   }
 
-  // Gate on admin auth when adminMode toggled
+  // If admin mode active but not yet PIN-verified
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
@@ -179,7 +192,7 @@ function App() {
 
       {/* FOOTER */}
       <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
-        <span className="text-sm text-gray-600 mr-4">User: {user}</span>
+        <span className="text-sm text-gray-600 mr-4">User: {displayName}</span>
 
         <button
           className="px-3 py-1 rounded text-white"
@@ -192,21 +205,27 @@ function App() {
           {adminMode ? 'Close Admin' : 'Admin'}
         </button>
 
+        {/* Switch user (clears nickname or guest session) */}
         <button
           className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: '#0097b2' }}
           onClick={() => {
+            if (isGuest) {
+              sessionStorage.removeItem("catechismGuest");
+            } else {
+              localStorage.removeItem("catechismUser");
+            }
             setUser("");
-            localStorage.removeItem("catechismUser");
           }}
         >
           Switch User
         </button>
 
+        {/* Delete user (disabled for Guest/Admin) */}
         <button
           className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: '#dc2626' }}
-          disabled={user.toLowerCase() === "admin"}
+          disabled={isGuest || user.toLowerCase() === "admin"}
           onClick={() => {
             if (window.confirm("Are you sure you want to permanently delete this user?")) {
               db.ref(`/users/${user}`).remove().then(() => {
@@ -224,7 +243,7 @@ function App() {
 }
 
 // =================================================================
-// USER SELECTION (nickname + optional admin PIN flow)
+// USER SELECTION (nickname optional + Guest + Admin PIN flow)
 // =================================================================
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
@@ -235,7 +254,10 @@ function UserSelect({ onSubmit }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nickname = name.trim().toLowerCase();
-    if (!nickname) return;
+    if (!nickname) {
+      setError("Please enter a nickname or continue without one.");
+      return;
+    }
 
     if (nickname === "admin") {
       setIsAdminLogin(true);
@@ -248,7 +270,6 @@ function UserSelect({ onSubmit }) {
         await db.ref(`/users/${nickname}`).set({ created: Date.now() });
       }
       onSubmit(nickname);
-      localStorage.setItem("catechismUser", nickname);
     } catch (err) {
       console.error("Error logging in:", err);
       setError("Something went wrong. Please try again.");
@@ -259,17 +280,28 @@ function UserSelect({ onSubmit }) {
     e.preventDefault();
     if (pin === "godfirst") {
       onSubmit("admin");
-      localStorage.setItem("catechismUser", "admin");
     } else {
       setError("Invalid Admin PIN");
     }
   };
 
+  // Normal nickname/guest screen
   if (!isAdminLogin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm">
-          <h1 className="text-xl font-semibold text-center">Pick a nickname</h1>
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
+        >
+          {/* 1:1 Logo (ideal: SVG; if PNG, 256x256 recommended) */}
+          <img
+            src="logo-256.png"
+            alt="Simple Christian Catechism"
+            className="w-28 h-28 mx-auto mb-2 rounded"
+          />
+
+          <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
+
           <input
             type="text"
             placeholder="Enter your nickname"
@@ -277,18 +309,42 @@ function UserSelect({ onSubmit }) {
             onChange={(e) => setName(e.target.value)}
             className="border rounded w-full p-2"
           />
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button type="submit" className="w-full text-white px-4 py-2 rounded" style={{ backgroundColor: '#0097b2' }}>
-            Continue
+
+          <button
+            type="submit"
+            className="w-full text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#0097b2' }}
+          >
+            Continue with nickname
           </button>
+
+          <div className="text-center text-sm text-gray-500">or</div>
+
+          {/* Anonymous continue */}
+          <button
+            type="button"
+            className="w-full text-white px-4 py-2 rounded"
+            style={{ backgroundColor: '#33c0d4' }}
+            onClick={() => onSubmit("__guest__")}
+          >
+            Continue without nickname
+          </button>
+
+          <p className="text-xs text-gray-400 text-center">Tip: type “admin” as the nickname to log in as Admin.</p>
         </form>
       </div>
     );
   }
 
+  // Admin PIN form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleAdminLogin} className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm">
+      <form
+        onSubmit={handleAdminLogin}
+        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
+      >
         <h1 className="text-xl font-semibold text-center">Admin Login</h1>
         <input
           type="password"
@@ -298,10 +354,18 @@ function UserSelect({ onSubmit }) {
           className="border rounded w-full p-2"
         />
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button type="submit" className="w-full text-white px-4 py-2 rounded" style={{ backgroundColor: '#0097b2' }}>
+        <button
+          type="submit"
+          className="w-full text-white px-4 py-2 rounded"
+          style={{ backgroundColor: '#0097b2' }}
+        >
           Login as Admin
         </button>
-        <button type="button" className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400" onClick={() => setIsAdminLogin(false)}>
+        <button
+          type="button"
+          className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+          onClick={() => setIsAdminLogin(false)}
+        >
           Back
         </button>
       </form>
@@ -502,12 +566,15 @@ function GamesView({ questions, unlockedIds }) {
       <div className="flex flex-wrap gap-2 mb-4">
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === 'mcq' ? '#0097b2' : '#33c0d4' }}
+          aria-pressed={mode === 'mcq'}
           onClick={() => setMode('mcq')}>Multiple Choice</button>
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === 'fill' ? '#0097b2' : '#33c0d4' }}
+          aria-pressed={mode === 'fill'}
           onClick={() => setMode('fill')}>Fill in the Blank</button>
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === 'flash' ? '#0097b2' : '#33c0d4' }}
+          aria-pressed={mode === 'flash'}
           onClick={() => setMode('flash')}>Flashcards</button>
       </div>
       {mode === 'mcq' && <MCQGame questions={unlocked} />}
@@ -523,7 +590,7 @@ function GamesView({ questions, unlockedIds }) {
 function MCQGame({ questions }) {
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState([]);
-  const [selected, setSelected] = useState(null);
+  ��const [selected, setSelected] = useState(null);
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
 
@@ -684,16 +751,19 @@ function FlashcardsGame({ questions }) {
     <div className="space-y-4">
       <div className="font-semibold">Card {index + 1} of {questions.length}</div>
       <div className="bg-white p-6 shadow rounded cursor-pointer hover:shadow-lg transition"
-           onClick={() => setShowAnswer(!showAnswer)} style={{ minHeight: '8rem' }}>
+           tabIndex={0}
+           onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setShowAnswer((s) => !s)}
+           onClick={() => setShowAnswer(!showAnswer)}
+           style={{ minHeight: '8rem' }}>
         {!showAnswer ? (
           <div className="text-center">
             <p className="font-medium">{questions[index].question}</p>
-            <p className="text-sm text-gray-500 mt-2">Tap card to reveal answer</p>
+            <p className="text-sm text-gray-500 mt-2">Tap or press Enter/Space to reveal</p>
           </div>
         ) : (
           <div className="text-center">
             <p className="font-medium">{questions[index].answer}</p>
-            <p className="text-sm text-gray-500 mt-2">Tap card to hide answer</p>
+            <p className="text-sm text-gray-500 mt-2">Tap or press Enter/Space to hide</p>
           </div>
         )}
       </div>
@@ -708,3 +778,4 @@ function FlashcardsGame({ questions }) {
 // MOUNT APP
 // =================================================================
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
