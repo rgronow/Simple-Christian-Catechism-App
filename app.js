@@ -332,7 +332,7 @@ function UserSelect({ onSubmit }) {
             Continue without nickname
           </button>
 
-          <p className="text-xs text-gray-400 text-center">Tip: type “admin” as the nickname to log in as Admin.</p>
+          <p className="text-xs text-gray-400 text-center"></p>
         </form>
       </div>
     );
