@@ -295,7 +295,7 @@ function UserSelect({ onSubmit }) {
         >
           {/* 1:1 Logo (ideal: SVG; if PNG, 256x256 recommended) */}
           <img
-            src="logo-256.png"
+            src="logo.png"
             alt="Simple Christian Catechism"
             className="w-28 h-28 mx-auto mb-2 rounded"
           />
