@@ -1,10 +1,33 @@
 // app.js - Firebase + Lightweight Identity + HomeScreen + Leaderboard + Scoring
-
 const { useState, useEffect } = React;
 
-// =================================================================
-// 1. INITIALIZE FIREBASE
-// =================================================================
+/* ----------------------------- YT URL Helper ------------------------------ */
+function transformYouTubeURL(urlOrId) {
+  if (!urlOrId) return "";
+  const s = urlOrId.trim();
+
+  // Full watch URL
+  if (s.includes("youtube.com/watch?v=")) {
+    const id = s.split("v=")[1]?.split("&")[0] || "";
+    return id ? `https://www.youtube.com/embed/${id}` : "";
+  }
+  // Short youtu.be
+  if (s.includes("youtu.be/")) {
+    const id = s.split("youtu.be/")[1]?.split(/[?&]/)[0] || "";
+    return id ? `https://www.youtube.com/embed/${id}` : "";
+  }
+  // Playlist or other formats (leave as-is if already /embed/)
+  if (s.includes("/embed/")) return s;
+
+  // Plain 11-char ID
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) {
+    return `https://www.youtube.com/embed/${s}`;
+  }
+
+  return "";
+}
+
+/* ------------------------------- Firebase --------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyAlZ5IsphN3IOLOKoGvQecJfEunjwbeolw",
   authDomain: "simplechristiancatechism.firebaseapp.com",
@@ -20,9 +43,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const dbRef = db.ref('/');
 
-// =================================================================
-// Utility functions
-// =================================================================
+/* --------------------------------- Utils ---------------------------------- */
 function shuffle(array) {
   const arr = array.slice();
   for (let i = arr.length - 1; i > 0; i--) {
@@ -63,20 +84,16 @@ function generateFillBlankData(questions, currentIndex, blankCount = 3) {
   return { blanks, options: shuffle([...hiddenWords, ...distractors]) };
 }
 
-// =================================================================
-// MAIN APP
-// =================================================================
+/* --------------------------------- App ------------------------------------ */
 function App() {
   const [questions, setQuestions] = useState([]);
   const [unlockedIds, setUnlockedIds] = useState([]);
-  const [view, setView] = useState('home'); // NEW: start at Home
+  const [view, setView] = useState('home');
   const [adminMode, setAdminMode] = useState(false);
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
-
   const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
 
-  // Fetch data from Firebase
   useEffect(() => {
     const unsubscribe = dbRef.on(
       "value",
@@ -97,7 +114,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Update unlockedIds globally
   const updateUnlockedIdsInFirebase = (newUnlockedIds) =>
     db.ref(`/unlockedIds`).set(newUnlockedIds);
 
@@ -112,14 +128,12 @@ function App() {
     }
   };
 
-  // Award points
   const awardPoints = (username, amount) => {
     if (!username || username === "__guest__") return;
     const ref = db.ref(`/users/${username}/points`);
     ref.transaction((curr) => (curr || 0) + amount);
   };
 
-  // If no nickname chosen, show UserSelect
   if (!user) {
     return (
       <UserSelect
@@ -131,7 +145,6 @@ function App() {
     );
   }
 
-  // If admin mode active but not logged in
   if (adminMode && !adminAuth) {
     return (
       <div className="p-4 max-w-lg mx-auto">
@@ -143,6 +156,7 @@ function App() {
       </div>
     );
   }
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* HEADER */}
@@ -152,34 +166,18 @@ function App() {
             Simple Christian Catechism
           </h1>
           <nav className="flex flex-wrap justify-center gap-2">
-            <button
-              className="px-3 py-1 rounded text-white"
+            <button className="px-3 py-1 rounded text-white"
               style={{ backgroundColor: view === "home" ? "#0097b2" : "#33c0d4" }}
-              onClick={() => setView("home")}
-            >
-              Home
-            </button>
-            <button
-              className="px-3 py-1 rounded text-white"
+              onClick={() => setView("home")}>Home</button>
+            <button className="px-3 py-1 rounded text-white"
               style={{ backgroundColor: view === "learn" ? "#0097b2" : "#33c0d4" }}
-              onClick={() => setView("learn")}
-            >
-              Learn
-            </button>
-            <button
-              className="px-3 py-1 rounded text-white"
+              onClick={() => setView("learn")}>Learn</button>
+            <button className="px-3 py-1 rounded text-white"
               style={{ backgroundColor: view === "games" ? "#0097b2" : "#33c0d4" }}
-              onClick={() => setView("games")}
-            >
-              Games
-            </button>
-            <button
-              className="px-3 py-1 rounded text-white"
+              onClick={() => setView("games")}>Games</button>
+            <button className="px-3 py-1 rounded text-white"
               style={{ backgroundColor: view === "leaderboard" ? "#0097b2" : "#33c0d4" }}
-              onClick={() => setView("leaderboard")}
-            >
-              Leaderboard
-            </button>
+              onClick={() => setView("leaderboard")}>Leaderboard</button>
           </nav>
         </div>
       </header>
@@ -213,102 +211,87 @@ function App() {
         ) : null}
       </main>
 
+      {/* FOOTER */}
       <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
-  <span className="text-sm text-gray-600 mr-4">
-    User: {user === "__guest__" ? "Guest" : user}
-  </span>
+        <span className="text-sm text-gray-600 mr-4">
+          User: {user === "__guest__" ? "Guest" : user}
+        </span>
 
-  {/* Admin toggle */}
-  <button
-    className="px-3 py-1 rounded text-white"
-    style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
-    onClick={() => {
-      setAdminMode(!adminMode);
-      if (adminMode) setAdminAuth(false);
-    }}
-  >
-    {adminMode ? "Close Admin" : "Admin"}
-  </button>
+        <button className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
+          onClick={() => {
+            setAdminMode(!adminMode);
+            if (adminMode) setAdminAuth(false);
+          }}>
+          {adminMode ? "Close Admin" : "Admin"}
+        </button>
 
-  {/* Switch User */}
-  <button
-    className="px-3 py-1 rounded text-white"
-    style={{ backgroundColor: "#0097b2" }}
-    onClick={() => {
-      setUser("");
-      localStorage.removeItem("catechismUser");
-    }}
-  >
-    Switch User
-  </button>
+        <button className="px-3 py-1 rounded text-white"
+          style={{ backgroundColor: "#0097b2" }}
+          onClick={() => {
+            setUser("");
+            localStorage.removeItem("catechismUser");
+          }}>
+          Switch User
+        </button>
 
-  {/* Delete User */}
-  <button
-    className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-    style={{ backgroundColor: "#ef4444" }} // red-500
-    disabled={user === "admin" || user === "__guest__"}
-    onClick={() => {
-      if (!user || user === "admin" || user === "__guest__") return;
-      const ok = window.confirm(
-        `Delete user "${user}" and all their points? This cannot be undone.`
-      );
-      if (!ok) return;
-      db.ref(`/users/${user}`).remove()
-        .then(() => {
-          localStorage.removeItem("catechismUser");
-          setUser("");
-          alert("User deleted.");
-        })
-        .catch((err) => {
-          console.error(err);
-          alert("Sorry, something went wrong deleting this user.");
-        });
-    }}
-  >
-    Delete User
-  </button>
-  </footer>
+        <button className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: "#ef4444" }}
+          disabled={user === "admin" || user === "__guest__"}
+          onClick={() => {
+            if (!user || user === "admin" || user === "__guest__") return;
+            const ok = window.confirm(
+              `Delete user "${user}" and all their points? This cannot be undone.`
+            );
+            if (!ok) return;
+            db.ref(`/users/${user}`).remove()
+              .then(() => {
+                localStorage.removeItem("catechismUser");
+                setUser("");
+                alert("User deleted.");
+              })
+              .catch((err) => {
+                console.error(err);
+                alert("Sorry, something went wrong deleting this user.");
+              });
+          }}>
+          Delete User
+        </button>
+      </footer>
     </div>
   );
 }
 
-// =================================================================
-// HOME SCREEN
-// =================================================================
+/* ------------------------------ Screens ----------------------------------- */
 function HomeScreen({ onNavigate }) {
   return (
     <div className="max-w-2xl mx-auto text-center space-y-6">
       <h2 className="text-2xl font-bold">Welcome!</h2>
       <p className="text-gray-700">
-        This app is designed to help you learn the Simple Christian Catechism
-        through reading, reflection, and interactive games.
+        This app helps you learn the Simple Christian Catechism through reading,
+        reflection, and interactive games.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="p-4 bg-white shadow rounded space-y-2">
           <h3 className="font-semibold" style={{ color: "#0097b2" }}>Learn</h3>
           <p className="text-sm text-gray-600">
-            Read through the catechism questions, explore answers, and watch
-            related videos to deepen your understanding.
+            Read through the questions, see answers, and watch the song or 3-min sermon.
           </p>
-          <button
-            className="px-4 py-2 rounded text-white"
+          <button className="px-4 py-2 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
-            onClick={() => onNavigate("learn")}
-          >
+            onClick={() => onNavigate("learn")}>
             Go to Learn
           </button>
         </div>
         <div className="p-4 bg-white shadow rounded space-y-2">
           <h3 className="font-semibold" style={{ color: "#0097b2" }}>Games</h3>
           <p className="text-sm text-gray-600">
-            Test your knowledge with multiple choice, fill-in-the-blank, and
-            flashcard games. Earn points for correct answers!
+            Test your knowledge with multiple choice, fill-in-the-blank, and flashcards.
+            Earn points for correct answers!
           </p>
-          <button
-            className="px-4 py-2 rounded text-white"
+          <button className="px-4 py-2 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
-            onClick={() => onNavigate("games")}
-          >
+            onClick={() => onNavigate("games")}>
             Go to Games
           </button>
         </div>
@@ -317,9 +300,7 @@ function HomeScreen({ onNavigate }) {
   );
 }
 
-// =================================================================
-// LEADERBOARD
-// =================================================================
+/* ------------------------------ Leaderboard ------------------------------- */
 function Leaderboard() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -357,13 +338,8 @@ function Leaderboard() {
       <h3 className="text-lg font-medium mt-4">Top 10</h3>
       <ol className="bg-white shadow rounded divide-y">
         {rows.map((r, i) => (
-          <li
-            key={r.name}
-            className="flex items-center justify-between px-3 py-2"
-          >
-            <span className="font-medium">
-              {i + 1}. {formatName(r.name)}
-            </span>
+          <li key={r.name} className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">{i + 1}. {formatName(r.name)}</span>
             <span className="ml-4 tabular-nums">{r.points} pts</span>
           </li>
         ))}
@@ -371,9 +347,8 @@ function Leaderboard() {
     </div>
   );
 }
-// =================================================================
-// USER SELECTION (nickname optional + logo + guest)
-// =================================================================
+
+/* ------------------------------ User Select ------------------------------- */
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -384,7 +359,6 @@ function UserSelect({ onSubmit }) {
     if (!nickname) return;
 
     try {
-      // Create user if not exists, initialise points
       const ref = db.ref(`/users/${nickname}`);
       const snap = await ref.once("value");
       if (!snap.exists()) {
@@ -399,48 +373,31 @@ function UserSelect({ onSubmit }) {
   };
 
   const continueAsGuest = () => {
-    // Store in localStorage so Part 1 picks it up
     localStorage.setItem("catechismUser", "__guest__");
     onSubmit("__guest__");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm"
-      >
-        <img
-          src="logo.png"
-          alt="Simple Christian Catechism Logo"
-          className="w-28 h-28 mx-auto mb-2 rounded"
-        />
+      <form onSubmit={handleSubmit}
+        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm">
+        <img src="logo.png" alt="Simple Christian Catechism Logo"
+          className="w-28 h-28 mx-auto mb-2 rounded" />
         <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
 
-        <input
-          type="text"
-          placeholder="Enter your nickname"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="border rounded w-full p-2"
-        />
+        <input type="text" placeholder="Enter your nickname"
+          value={name} onChange={(e) => setName(e.target.value)}
+          className="border rounded w-full p-2" />
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <button
-          type="submit"
-          className="w-full text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#0097b2" }}
-        >
+        <button type="submit" className="w-full text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#0097b2" }}>
           Continue
         </button>
 
-        <button
-          type="button"
-          className="w-full text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#33c0d4" }}
-          onClick={continueAsGuest}
-        >
+        <button type="button" className="w-full text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#33c0d4" }} onClick={continueAsGuest}>
           Continue without nickname
         </button>
 
@@ -452,9 +409,7 @@ function UserSelect({ onSubmit }) {
   );
 }
 
-// =================================================================
-// ADMIN LOGIN
-// =================================================================
+/* ------------------------------- Admin ------------------------------------ */
 function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState("");
   const handleSubmit = (e) => {
@@ -466,32 +421,20 @@ function AdminLogin({ onSuccess, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium mb-1">Enter Admin PIN</label>
-        <input
-          type="password"
-          value={pin}
+        <input type="password" value={pin}
           onChange={(e) => setPin(e.target.value)}
-          className="border rounded w-full p-2"
-        />
+          className="border rounded w-full p-2" />
       </div>
       <div className="flex space-x-2">
-        <button
-          type="submit"
-          className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#0097b2" }}
-        >
-          Login
-        </button>
-        <button type="button" className="bg-gray-300 px-4 py-2 rounded" onClick={onCancel}>
-          Cancel
-        </button>
+        <button type="submit" className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#0097b2" }}>Login</button>
+        <button type="button" className="bg-gray-300 px-4 py-2 rounded"
+          onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
 }
 
-// =================================================================
-// ADMIN VIEW (global unlocks apply to all users)
-// =================================================================
 function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
   const toggleUnlocked = (id) => {
     const next = unlockedIds.includes(id)
@@ -510,18 +453,12 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
   return (
     <div className="space-y-4">
       <div className="flex space-x-2">
-        <button
-          className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#22c55e" }}
-          onClick={handleUnlockNext}
-        >
+        <button className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#22c55e" }} onClick={handleUnlockNext}>
           Unlock Next
         </button>
-        <button
-          className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#0097b2" }}
-          onClick={unlockAll}
-        >
+        <button className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#0097b2" }} onClick={unlockAll}>
           Unlock All
         </button>
       </div>
@@ -533,9 +470,9 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
               <th className="border px-2 py-1 text-left">#</th>
               <th className="border px-2 py-1 text-left">Question</th>
               <th className="border px-2 py-1 text-center">Unlocked</th>
-              <th className="border px-2 py-1 text-left">Answer Video</th>
+              {/* Removed Answer Video column */}
               <th className="border px-2 py-1 text-left">Song</th>
-              <th className="border px-2 py-1 text-left">Sermon</th>
+              <th className="border px-2 py-1 text-left">3-min Sermon</th>
             </tr>
           </thead>
           <tbody>
@@ -543,43 +480,26 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
               <tr key={q.id} className="odd:bg-gray-50">
                 <td className="border px-2 py-1 whitespace-nowrap">{q.id}</td>
                 <td className="border px-2 py-1">
-                  <div className="max-w-xs truncate" title={q.question}>
-                    {q.question}
-                  </div>
+                  <div className="max-w-xs truncate" title={q.question}>{q.question}</div>
                 </td>
                 <td className="border px-2 py-1 text-center">
-                  <input
-                    type="checkbox"
+                  <input type="checkbox"
                     checked={unlockedIds.includes(q.id)}
-                    onChange={() => toggleUnlocked(q.id)}
-                  />
+                    onChange={() => toggleUnlocked(q.id)} />
                 </td>
+
                 <td className="border px-2 py-1">
-                  <input
-                    type="text"
-                    className="border rounded w-full p-1 text-xs"
-                    value={q.youtube || ""}
-                    onChange={(e) => handleFieldChange(q.id, "youtube", e.target.value)}
-                    placeholder="Paste YouTube (answer video) link"
-                  />
-                </td>
-                <td className="border px-2 py-1">
-                  <input
-                    type="text"
-                    className="border rounded w-full p-1 text-xs"
+                  <input type="text" className="border rounded w-full p-1 text-xs"
                     value={q.song || ""}
                     onChange={(e) => handleFieldChange(q.id, "song", e.target.value)}
-                    placeholder="Paste Song link"
-                  />
+                    placeholder="Paste Song YouTube link or ID" />
                 </td>
+
                 <td className="border px-2 py-1">
-                  <input
-                    type="text"
-                    className="border rounded w-full p-1 text-xs"
+                  <input type="text" className="border rounded w-full p-1 text-xs"
                     value={q.sermon || ""}
                     onChange={(e) => handleFieldChange(q.id, "sermon", e.target.value)}
-                    placeholder="Paste Sermon link"
-                  />
+                    placeholder="Paste 3-min Sermon YouTube link or ID" />
                 </td>
               </tr>
             ))}
@@ -590,9 +510,7 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
   );
 }
 
-// =================================================================
-// LEARN VIEW
-// =================================================================
+/* ----------------------------- Learn & Card ------------------------------- */
 function LearnView({ questions, unlockedIds }) {
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
   if (unlocked.length === 0) return <div>No questions unlocked yet. Please unlock in admin.</div>;
@@ -609,14 +527,13 @@ function LearnView({ questions, unlockedIds }) {
   );
 }
 
-// =================================================================
-// QUESTION CARD (Answer + Video + Song + Sermon)
-// =================================================================
 function QuestionCard({ question }) {
   const [showAnswer, setShowAnswer] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
   const [showSong, setShowSong] = useState(false);
   const [showSermon, setShowSermon] = useState(false);
+
+  const songEmbed = transformYouTubeURL(question.song);
+  const sermonEmbed = transformYouTubeURL(question.sermon);
 
   return (
     <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
@@ -625,89 +542,53 @@ function QuestionCard({ question }) {
       </h2>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          className="px-3 py-1 rounded text-white"
+        <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
-          onClick={() => setShowAnswer((s) => !s)}
-        >
-          {showAnswer ? "Hide" : "Show"} Answer
+          onClick={() => setShowAnswer((s) => !s)}>
+          {showAnswer ? "Hide" : "Answer"}
         </button>
 
-        {question.youtube && (
-          <button
-            className="px-3 py-1 rounded text-white"
+        {songEmbed && (
+          <button className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
-            onClick={() => setShowVideo((s) => !s)}
-          >
-            {showVideo ? "Hide" : "Video"}
-          </button>
-        )}
-
-        {question.song && (
-          <button
-            className="px-3 py-1 rounded text-white"
-            style={{ backgroundColor: "#0097b2" }}
-            onClick={() => setShowSong((s) => !s)}
-          >
+            onClick={() => setShowSong((s) => !s)}>
             {showSong ? "Hide Song" : "Song"}
           </button>
         )}
 
-        {question.sermon && (
-          <button
-            className="px-3 py-1 rounded text-white"
+        {sermonEmbed && (
+          <button className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
-            onClick={() => setShowSermon((s) => !s)}
-          >
-            {showSermon ? "Hide Sermon" : "5 min Sermon"}
+            onClick={() => setShowSermon((s) => !s)}>
+            {showSermon ? "Hide Sermon" : "3-min Sermon"}
           </button>
         )}
       </div>
 
       {showAnswer && <p className="text-gray-800 leading-relaxed">{question.answer}</p>}
 
-      {showVideo && (
+      {showSong && songEmbed && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
-          <iframe
-            className="w-full h-48"
-            src={transformYouTubeURL(question.youtube)}
-            title="Answer Video"
+          <iframe className="w-full h-48"
+            src={songEmbed} title="Song"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+            allowFullScreen></iframe>
         </div>
       )}
 
-      {showSong && (
+      {showSermon && sermonEmbed && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
-          <iframe
-            className="w-full h-48"
-            src={transformYouTubeURL(question.song)}
-            title="Song"
+          <iframe className="w-full h-48"
+            src={sermonEmbed} title="3-min Sermon"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
-        </div>
-      )}
-
-      {showSermon && (
-        <div className="mt-2 rounded-lg overflow-hidden shadow-md">
-          <iframe
-            className="w-full h-48"
-            src={transformYouTubeURL(question.sermon)}
-            title="Mini Sermon"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+            allowFullScreen></iframe>
         </div>
       )}
     </div>
   );
 }
 
-// =================================================================
-// GAMES VIEW (passes awardPoints)
-// =================================================================
+/* -------------------------------- Games ----------------------------------- */
 function GamesView({ questions, unlockedIds, awardPoints }) {
   const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
   const [mode, setMode] = useState("mcq");
@@ -719,27 +600,15 @@ function GamesView({ questions, unlockedIds, awardPoints }) {
         Unlocked {unlocked.length} of {questions.length} questions
       </p>
       <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          className="px-3 py-1 rounded text-white"
+        <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === "mcq" ? "#0097b2" : "#33c0d4" }}
-          onClick={() => setMode("mcq")}
-        >
-          Multiple Choice
-        </button>
-        <button
-          className="px-3 py-1 rounded text-white"
+          onClick={() => setMode("mcq")}>Multiple Choice</button>
+        <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === "fill" ? "#0097b2" : "#33c0d4" }}
-          onClick={() => setMode("fill")}
-        >
-          Fill in the Blank
-        </button>
-        <button
-          className="px-3 py-1 rounded text-white"
+          onClick={() => setMode("fill")}>Fill in the Blank</button>
+        <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === "flash" ? "#0097b2" : "#33c0d4" }}
-          onClick={() => setMode("flash")}
-        >
-          Flashcards
-        </button>
+          onClick={() => setMode("flash")}>Flashcards</button>
       </div>
 
       {mode === "mcq" && <MCQGame questions={unlocked} awardPoints={awardPoints} />}
@@ -749,9 +618,7 @@ function GamesView({ questions, unlockedIds, awardPoints }) {
   );
 }
 
-// =================================================================
-// MCQ GAME (awards +10 points per correct)
-// =================================================================
+/* ------------------------------- MCQ Game --------------------------------- */
 function MCQGame({ questions, awardPoints }) {
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState([]);
@@ -785,16 +652,11 @@ function MCQGame({ questions, awardPoints }) {
     return (
       <div className="space-y-4">
         <p>You scored {score} out of {questions.length}.</p>
-        <button
-          className="px-4 py-2 rounded text-white"
+        <button className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
           onClick={() => {
-            setIndex(0);
-            setSelected(null);
-            setScore(0);
-            setCompleted(false);
-          }}
-        >
+            setIndex(0); setSelected(null); setScore(0); setCompleted(false);
+          }}>
           Restart
         </button>
       </div>
@@ -808,8 +670,7 @@ function MCQGame({ questions, awardPoints }) {
         <p className="mb-4 font-medium">{questions[index].question}</p>
         <div className="space-y-2">
           {options.map((option, i) => (
-            <button
-              key={i}
+            <button key={i}
               className={`block w-full text-left px-3 py-2 rounded border ${
                 selected === null
                   ? "bg-gray-100"
@@ -819,29 +680,22 @@ function MCQGame({ questions, awardPoints }) {
                   ? "bg-red-200"
                   : "bg-gray-100"
               }`}
-              onClick={() => handleSelect(option)}
-            >
+              onClick={() => handleSelect(option)}>
               {option}
             </button>
           ))}
         </div>
         {selected !== null && (
-          <button
-            className="mt-4 px-4 py-2 rounded text-white"
+          <button className="mt-4 px-4 py-2 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
-            onClick={next}
-          >
-            Next
-          </button>
+            onClick={next}>Next</button>
         )}
       </div>
     </div>
   );
 }
 
-// =================================================================
-/* FILL IN THE BLANK (awards +10 points per correct) */
-// =================================================================
+/* --------------------------- Fill-in-the-Blank ---------------------------- */
 function FillBlankGame({ questions, awardPoints }) {
   const [index, setIndex] = useState(0);
   const [data, setData] = useState(null);
@@ -881,15 +735,9 @@ function FillBlankGame({ questions, awardPoints }) {
     return (
       <div className="space-y-4">
         <p>You scored {score} out of {questions.length}.</p>
-        <button
-          className="px-4 py-2 rounded text-white"
+        <button className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
-          onClick={() => {
-            setIndex(0);
-            setScore(0);
-            setCompleted(false);
-          }}
-        >
+          onClick={() => { setIndex(0); setScore(0); setCompleted(false); }}>
           Restart
         </button>
       </div>
@@ -908,20 +756,16 @@ function FillBlankGame({ questions, awardPoints }) {
         <p className="mb-4 text-lg">{displaySentence.join("")}</p>
         <div className="flex flex-wrap gap-2 mb-4">
           {data.options.map((word, idx) => (
-            <button
-              key={idx}
+            <button key={idx}
               className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
-              onClick={() => fillWord(word)}
-            >
+              onClick={() => fillWord(word)}>
               {word}
             </button>
           ))}
         </div>
-        <button
-          className="px-4 py-2 rounded text-white"
+        <button className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
-          onClick={checkAnswer}
-        >
+          onClick={checkAnswer}>
           {index + 1 < questions.length ? "Next" : "Finish"}
         </button>
       </div>
@@ -929,9 +773,7 @@ function FillBlankGame({ questions, awardPoints }) {
   );
 }
 
-// =================================================================
-// FLASHCARDS (no scoring)
-// =================================================================
+/* ------------------------------ Flashcards -------------------------------- */
 function FlashcardsGame({ questions }) {
   const [index, setIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -950,15 +792,9 @@ function FlashcardsGame({ questions }) {
     return (
       <div className="space-y-4">
         <p>You've gone through all flashcards.</p>
-        <button
-          className="px-4 py-2 rounded text-white"
+        <button className="px-4 py-2 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
-          onClick={() => {
-            setIndex(0);
-            setShowAnswer(false);
-            setCompleted(false);
-          }}
-        >
+          onClick={() => { setIndex(0); setShowAnswer(false); setCompleted(false); }}>
           Restart
         </button>
       </div>
@@ -968,11 +804,8 @@ function FlashcardsGame({ questions }) {
   return (
     <div className="space-y-4">
       <div className="font-semibold">Card {index + 1} of {questions.length}</div>
-      <div
-        className="bg-white p-6 shadow rounded cursor-pointer hover:shadow-lg transition"
-        onClick={() => setShowAnswer((s) => !s)}
-        style={{ minHeight: "8rem" }}
-      >
+      <div className="bg-white p-6 shadow rounded cursor-pointer hover:shadow-lg transition"
+        onClick={() => setShowAnswer((s) => !s)} style={{ minHeight: "8rem" }}>
         {!showAnswer ? (
           <div className="text-center">
             <p className="font-medium">{questions[index].question}</p>
@@ -985,18 +818,14 @@ function FlashcardsGame({ questions }) {
           </div>
         )}
       </div>
-      <button
-        className="px-4 py-2 rounded text-white"
+      <button className="px-4 py-2 rounded text-white"
         style={{ backgroundColor: "#0097b2" }}
-        onClick={next}
-      >
+        onClick={next}>
         {index + 1 < questions.length ? "Next" : "Finish"}
       </button>
     </div>
   );
 }
 
-// =================================================================
-// MOUNT APP
-// =================================================================
+/* ------------------------------- Mount ------------------------------------ */
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
