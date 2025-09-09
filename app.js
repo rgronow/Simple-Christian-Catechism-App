@@ -380,7 +380,7 @@ function AdminLogin({ onSuccess, onCancel }) {
   const [pin, setPin] = useState('');
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (pin === 'godfirst') onSuccess();
+    if (pin === '4440') onSuccess();
     else alert('Invalid PIN');
   };
   return (
