@@ -213,32 +213,61 @@ function App() {
         ) : null}
       </main>
 
-      {/* FOOTER */}
       <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
-        <span className="text-sm text-gray-600 mr-4">
-          User: {user === "__guest__" ? "Guest" : user}
-        </span>
-        <button
-          className={`px-3 py-1 rounded text-white`}
-          style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
-          onClick={() => {
-            setAdminMode(!adminMode);
-            if (adminMode) setAdminAuth(false);
-          }}
-        >
-          {adminMode ? "Close Admin" : "Admin"}
-        </button>
-        <button
-          className="px-3 py-1 rounded text-white"
-          style={{ backgroundColor: "#0097b2" }}
-          onClick={() => {
-            setUser("");
-            localStorage.removeItem("catechismUser");
-          }}
-        >
-          Switch User
-        </button>
-      </footer>
+  <span className="text-sm text-gray-600 mr-4">
+    User: {user === "__guest__" ? "Guest" : user}
+  </span>
+
+  {/* Admin toggle */}
+  <button
+    className="px-3 py-1 rounded text-white"
+    style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
+    onClick={() => {
+      setAdminMode(!adminMode);
+      if (adminMode) setAdminAuth(false);
+    }}
+  >
+    {adminMode ? "Close Admin" : "Admin"}
+  </button>
+
+  {/* Switch User */}
+  <button
+    className="px-3 py-1 rounded text-white"
+    style={{ backgroundColor: "#0097b2" }}
+    onClick={() => {
+      setUser("");
+      localStorage.removeItem("catechismUser");
+    }}
+  >
+    Switch User
+  </button>
+
+  {/* Delete User */}
+  <button
+    className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+    style={{ backgroundColor: "#ef4444" }} // red-500
+    disabled={user === "admin" || user === "__guest__"}
+    onClick={() => {
+      if (!user || user === "admin" || user === "__guest__") return;
+      const ok = window.confirm(
+        `Delete user "${user}" and all their points? This cannot be undone.`
+      );
+      if (!ok) return;
+      db.ref(`/users/${user}`).remove()
+        .then(() => {
+          localStorage.removeItem("catechismUser");
+          setUser("");
+          alert("User deleted.");
+        })
+        .catch((err) => {
+          console.error(err);
+          alert("Sorry, something went wrong deleting this user.");
+        });
+    }}
+  >
+    Delete User
+  </button>
+  </footer>
     </div>
   );
 }
