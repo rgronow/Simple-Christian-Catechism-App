@@ -706,48 +706,52 @@ function FlashcardsGame({ questions }) {
 }
 
 // =================================================================
-// LEADERBOARD VIEW
+// LEADERBOARD (Top 10) — uses /users/{name}/points
 // =================================================================
-function LeaderboardView() {
-  const [entries, setEntries] = useState([]);
+function Leaderboard() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const ref = db.ref("/users");
-    ref.on("value", (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data).map(([name, val]) => ({
-        name,
-        score: val.score || 0,
-      }));
-      list.sort((a, b) => b.score - a.score);
-      setEntries(list.slice(0, 10));
+    // Order by points, take last 10 (highest), then sort descending
+    const ref = db.ref('/users').orderByChild('points').limitToLast(10);
+    const handler = ref.on('value', (snap) => {
+      const val = snap.val() || {};
+      const list = Object.entries(val)
+        // exclude special names
+        .filter(([name]) => name !== 'admin' && name !== '__guest__')
+        .map(([name, data]) => ({
+          name,
+          points: Number((data && data.points) || 0),
+        }))
+        .sort((a, b) => b.points - a.points);
+      setRows(list);
+      setLoading(false);
     });
-    return () => ref.off();
+    return () => ref.off('value', handler);
   }, []);
 
-  // Capitalise first letter of username
   const formatName = (name) =>
-    name.charAt(0).toUpperCase() + name.slice(1);
+    name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
+
+  if (loading) return <div>Loading…</div>;
+  if (!rows.length) return <div>No scores yet. Be the first!</div>;
 
   return (
-    <div className="space-y-4 text-center">
-      <h2 className="text-xl font-bold">Top 10</h2>
-      <ol className="space-y-2 max-w-sm mx-auto">
-        {entries.map((entry, i) => (
-          <li
-            key={entry.name}
-            className="flex justify-between bg-white p-2 rounded shadow"
-          >
-            <span className="font-semibold">
-              {i + 1}. {formatName(entry.name)}
-            </span>
-            <span className="ml-4">{entry.score} pts</span>
+    <div className="max-w-md mx-auto space-y-3 text-center">
+      <h2 className="text-xl font-semibold">Top 10</h2>
+      <ol className="bg-white shadow rounded divide-y">
+        {rows.map((r, i) => (
+          <li key={r.name} className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">{i + 1}. {formatName(r.name)}</span>
+            <span className="ml-4 tabular-nums">{r.points} pts</span>
           </li>
         ))}
       </ol>
     </div>
   );
 }
+
 
 /* ================================================================
    9) Mount
