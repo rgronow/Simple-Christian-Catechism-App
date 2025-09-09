@@ -712,25 +712,6 @@ function Leaderboard() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  return (
-  <div className="max-w-md mx-auto space-y-3 text-center">
-    <h2 className="text-xl font-semibold">Leaderboard</h2>
-    <p className="text-gray-600 text-sm">
-      The leaderboard shows the top users based on points earned in the games. 
-      Each correct answer adds to your score — keep playing to climb higher!
-    </p>
-    <h3 className="text-lg font-medium mt-4">Top 10</h3>
-    <ol className="bg-white shadow rounded divide-y">
-      {rows.map((r, i) => (
-        <li key={r.name} className="flex items-center justify-between px-3 py-2">
-          <span className="font-medium">{i + 1}. {formatName(r.name)}</span>
-          <span className="ml-4 tabular-nums">{r.points} pts</span>
-        </li>
-      ))}
-    </ol>
-  </div>
-);
-
   useEffect(() => {
     // Order by points, take last 10 (highest), then sort descending
     const ref = db.ref('/users').orderByChild('points').limitToLast(10);
@@ -757,12 +738,22 @@ function Leaderboard() {
   if (!rows.length) return <div>No scores yet. Be the first!</div>;
 
   return (
-    <div className="max-w-md mx-auto space-y-3 text-center">
-      <h2 className="text-xl font-semibold">Top 10</h2>
+    <div className="max-w-md mx-auto space-y-4 text-center">
+      <h2 className="text-2xl font-bold">Leaderboard</h2>
+      <p className="text-gray-600 text-sm">
+        The leaderboard shows the top users based on points earned in the games. 
+        Each correct answer adds to your score — keep playing to climb higher!
+      </p>
+      <h3 className="text-lg font-medium mt-4">Top 10</h3>
       <ol className="bg-white shadow rounded divide-y">
         {rows.map((r, i) => (
-          <li key={r.name} className="flex items-center justify-between px-3 py-2">
-            <span className="font-medium">{i + 1}. {formatName(r.name)}</span>
+          <li
+            key={r.name}
+            className="flex items-center justify-between px-3 py-2"
+          >
+            <span className="font-medium">
+              {i + 1}. {formatName(r.name)}
+            </span>
             <span className="ml-4 tabular-nums">{r.points} pts</span>
           </li>
         ))}
@@ -770,7 +761,6 @@ function Leaderboard() {
     </div>
   );
 }
-
 
 /* ================================================================
    9) Mount
