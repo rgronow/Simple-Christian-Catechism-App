@@ -1,23 +1,31 @@
 // app.js - Firebase + Lightweight Identity + HomeScreen + Leaderboard + Scoring
 const { useState, useEffect } = React;
 
-/* ----------------------------- YT URL Helper ------------------------------ */
+/* ----------------------------- YT URL Helpers ----------------------------- */
 function transformYouTubeURL(urlOrId) {
   if (!urlOrId) return "";
-  const s = urlOrId.trim();
+  const s = String(urlOrId).trim();
 
-  // Full watch URL
+  // Already an /embed/ URL
+  if (s.includes("/embed/")) return s;
+
+  // Shorts (e.g., https://www.youtube.com/shorts/VIDEOID?si=...)
+  if (s.includes("youtube.com/shorts/")) {
+    const id = s.split("/shorts/")[1]?.split(/[?&]/)[0] || "";
+    return id ? `https://www.youtube.com/embed/${id}` : "";
+  }
+
+  // Standard watch URL
   if (s.includes("youtube.com/watch?v=")) {
     const id = s.split("v=")[1]?.split("&")[0] || "";
     return id ? `https://www.youtube.com/embed/${id}` : "";
   }
+
   // Short youtu.be
   if (s.includes("youtu.be/")) {
     const id = s.split("youtu.be/")[1]?.split(/[?&]/)[0] || "";
     return id ? `https://www.youtube.com/embed/${id}` : "";
   }
-  // Playlist or other formats (leave as-is if already /embed/)
-  if (s.includes("/embed/")) return s;
 
   // Plain 11-char ID
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) {
@@ -27,7 +35,13 @@ function transformYouTubeURL(urlOrId) {
   return "";
 }
 
-/* ------------------------------- Firebase --------------------------------- */
+// Detect Shorts so we can use a 9:16 frame
+function isYouTubeShorts(urlOrId) {
+  if (!urlOrId) return false;
+  return String(urlOrId).includes("/shorts/");
+}
+
+/* -------------------------------- Firebase -------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyAlZ5IsphN3IOLOKoGvQecJfEunjwbeolw",
   authDomain: "simplechristiancatechism.firebaseapp.com",
@@ -275,7 +289,7 @@ function HomeScreen({ onNavigate }) {
         <div className="p-4 bg-white shadow rounded space-y-2">
           <h3 className="font-semibold" style={{ color: "#0097b2" }}>Learn</h3>
           <p className="text-sm text-gray-600">
-            Read through the questions, see answers, and watch the song or 3-min sermon.
+            Read each question, see the answer, and watch the song or **2-min sermon**.
           </p>
           <button className="px-4 py-2 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
@@ -470,9 +484,8 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
               <th className="border px-2 py-1 text-left">#</th>
               <th className="border px-2 py-1 text-left">Question</th>
               <th className="border px-2 py-1 text-center">Unlocked</th>
-              {/* Removed Answer Video column */}
               <th className="border px-2 py-1 text-left">Song</th>
-              <th className="border px-2 py-1 text-left">3-min Sermon</th>
+              <th className="border px-2 py-1 text-left">2-min Sermon</th>
             </tr>
           </thead>
           <tbody>
@@ -499,7 +512,7 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                   <input type="text" className="border rounded w-full p-1 text-xs"
                     value={q.sermon || ""}
                     onChange={(e) => handleFieldChange(q.id, "sermon", e.target.value)}
-                    placeholder="Paste 3-min Sermon YouTube link or ID" />
+                    placeholder="Paste 2-min Sermon YouTube link (watch/shorts) or ID" />
                 </td>
               </tr>
             ))}
@@ -534,6 +547,15 @@ function QuestionCard({ question }) {
 
   const songEmbed = transformYouTubeURL(question.song);
   const sermonEmbed = transformYouTubeURL(question.sermon);
+  const songIsShorts = isYouTubeShorts(question.song);
+  const sermonIsShorts = isYouTubeShorts(question.sermon);
+
+  const iframeCommon = {
+    className: "w-full",
+    allow:
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+    allowFullScreen: true,
+  };
 
   return (
     <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
@@ -560,7 +582,7 @@ function QuestionCard({ question }) {
           <button className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
             onClick={() => setShowSermon((s) => !s)}>
-            {showSermon ? "Hide Sermon" : "3-min Sermon"}
+            {showSermon ? "Hide Sermon" : "2-min Sermon"}
           </button>
         )}
       </div>
@@ -569,19 +591,23 @@ function QuestionCard({ question }) {
 
       {showSong && songEmbed && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
-          <iframe className="w-full h-48"
-            src={songEmbed} title="Song"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen></iframe>
+          <iframe
+            {...iframeCommon}
+            style={{ aspectRatio: songIsShorts ? "9 / 16" : "16 / 9", height: "auto" }}
+            src={songEmbed}
+            title="Song"
+          ></iframe>
         </div>
       )}
 
       {showSermon && sermonEmbed && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
-          <iframe className="w-full h-48"
-            src={sermonEmbed} title="3-min Sermon"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen></iframe>
+          <iframe
+            {...iframeCommon}
+            style={{ aspectRatio: sermonIsShorts ? "9 / 16" : "16 / 9", height: "auto" }}
+            src={sermonEmbed}
+            title="2-min Sermon"
+          ></iframe>
         </div>
       )}
     </div>
