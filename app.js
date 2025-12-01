@@ -363,65 +363,161 @@ function Leaderboard() {
 }
 
 /* ------------------------------ User Select ------------------------------- */
+// =================================================================
+// USER SELECTION SCREEN (nickname optional + admin via "admin")
+// =================================================================
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const [pin, setPin] = useState("");
 
+  // Normal nickname flow
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const nickname = name.trim().toLowerCase();
-    if (!nickname) return;
+    const rawName = name.trim();
+    if (!rawName) return;
+
+    const nicknameKey = rawName.toLowerCase();
+
+    // Special case: "admin" goes to PIN screen
+    if (nicknameKey === "admin") {
+      setIsAdminLogin(true);
+      return;
+    }
 
     try {
-      const ref = db.ref(`/users/${nickname}`);
-      const snap = await ref.once("value");
+      // We ONLY ever write to /users/<nickname>/points
+      const snap = await db.ref(`/users/${nicknameKey}/points`).once("value");
+
+      // First time this nickname is used: create with 0 points
       if (!snap.exists()) {
-        await ref.set({ created: Date.now(), points: 0 });
+        await db.ref(`/users/${nicknameKey}/points`).set(0);
       }
-      localStorage.setItem("catechismUser", nickname);
-      onSubmit(nickname);
+
+      onSubmit(nicknameKey);
+      localStorage.setItem("catechismUser", nicknameKey);
     } catch (err) {
-      console.error(err);
+      console.error("Error logging in:", err?.code, err?.message);
       setError("Something went wrong. Please try again.");
     }
   };
 
-  const continueAsGuest = () => {
-    localStorage.setItem("catechismUser", "__guest__");
-    onSubmit("__guest__");
+  // Admin PIN flow
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    if (pin === "godfirst") {
+      onSubmit("admin");
+      localStorage.setItem("catechismUser", "admin");
+    } else {
+      setError("Invalid Admin PIN");
+    }
   };
 
+  // ----- Normal nickname form -----
+  if (!isAdminLogin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm text-center"
+        >
+          {/* Logo (1:1 image) */}
+          <div className="flex justify-center mb-2">
+            <img
+              src="logo.png"
+              alt="Simple Christian Catechism"
+              className="w-24 h-24 rounded-full object-contain"
+            />
+          </div>
+
+          <h1 className="text-xl font-semibold">Welcome</h1>
+          <p className="text-sm text-gray-600">
+            You can use the app anonymously or choose a nickname so that your quiz
+            scores appear on the leaderboard.
+          </p>
+
+          <input
+            type="text"
+            placeholder="Enter a nickname (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="border rounded w-full p-2"
+          />
+
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+
+          <div className="space-y-2">
+            {/* Continue with nickname (creates /users/<name>/points) */}
+            <button
+              type="submit"
+              className="w-full text-white px-4 py-2 rounded"
+              style={{ backgroundColor: "#0097b2" }}
+            >
+              Continue with nickname
+            </button>
+
+            {/* Anonymous usage: no DB write, no leaderboard updates */}
+            <button
+              type="button"
+              className="w-full border px-4 py-2 rounded"
+              onClick={() => {
+                onSubmit("");        // empty string = anonymous
+                localStorage.removeItem("catechismUser");
+              }}
+            >
+              Continue without nickname
+            </button>
+
+            {/* Link to admin login (you can keep this “hidden feature” if you like) */}
+            <button
+              type="button"
+              className="w-full text-xs text-gray-500 underline mt-2"
+              onClick={() => setIsAdminLogin(true)}
+            >
+              Admin login
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // ----- Admin PIN form -----
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleSubmit}
-        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm">
-        <img src="logo.png" alt="Simple Christian Catechism Logo"
-          className="w-28 h-28 mx-auto mb-2 rounded" />
-        <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
-
-        <input type="text" placeholder="Enter your nickname"
-          value={name} onChange={(e) => setName(e.target.value)}
-          className="border rounded w-full p-2" />
-
+      <form
+        onSubmit={handleAdminLogin}
+        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm text-center"
+      >
+        <h1 className="text-xl font-semibold">Admin Login</h1>
+        <input
+          type="password"
+          placeholder="Enter Admin PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          className="border rounded w-full p-2"
+        />
         {error && <p className="text-red-600 text-sm">{error}</p>}
-
-        <button type="submit" className="w-full text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#0097b2" }}>
-          Continue
+        <button
+          type="submit"
+          className="w-full text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#0097b2" }}
+        >
+          Login as Admin
         </button>
-
-        <button type="button" className="w-full text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#33c0d4" }} onClick={continueAsGuest}>
-          Continue without nickname
+        <button
+          type="button"
+          className="w-full bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+          onClick={() => setIsAdminLogin(false)}
+        >
+          Back
         </button>
-
-        <p className="text-xs text-center text-gray-500">
-          Guests can play and earn points locally (not shown on the global leaderboard).
-        </p>
       </form>
     </div>
   );
 }
+
 
 /* ------------------------------- Admin ------------------------------------ */
 function AdminLogin({ onSuccess, onCancel }) {
