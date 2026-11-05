@@ -200,7 +200,7 @@ function App() {
   };
 
   const awardPoints = (username, amount) => {
-    if (!username || username === "__guest__") return;
+    if (!username || username === "__guest__" || username === "admin") return;
     const ref = db.ref(`/users/${username}/points`);
     ref.transaction((curr) => (curr || 0) + amount);
   };
@@ -313,7 +313,7 @@ function App() {
               `Delete user "${user}" and all their points? This cannot be undone.`
             );
             if (!ok) return;
-            db.ref(`/users/${user}`).remove()
+            db.ref(`/users/${user}/points`).remove()
               .then(() => {
                 localStorage.removeItem("catechismUser");
                 setUser("");
@@ -418,19 +418,24 @@ function Leaderboard() {
 function UserSelect({ onSubmit }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const [pin, setPin] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nickname = name.trim().toLowerCase();
     if (!nickname) return;
+    if (nickname === "admin") {
+      setIsAdminLogin(true);
+      return;
+    }
 
     try {
-      const ref = db.ref(`/users/${nickname}`);
+      const ref = db.ref(`/users/${nickname}/points`);
       const snap = await ref.once("value");
       if (!snap.exists()) {
-        await ref.set({ created: Date.now(), points: 0 });
+        await ref.set(0);
       }
-      localStorage.setItem("catechismUser", nickname);
       onSubmit(nickname);
     } catch (err) {
       console.error(err);
@@ -439,9 +444,31 @@ function UserSelect({ onSubmit }) {
   };
 
   const continueAsGuest = () => {
-    localStorage.setItem("catechismUser", "__guest__");
     onSubmit("__guest__");
   };
+
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    if (pin === "godfirst") onSubmit("admin");
+    else setError("Invalid Admin PIN");
+  };
+
+  if (isAdminLogin) {
+    return (
+      <div className="welcome-screen min-h-screen flex items-center justify-center">
+        <form onSubmit={handleAdminLogin} className="welcome-card bg-white p-6 space-y-4 w-full max-w-sm">
+          <h1 className="text-xl font-semibold text-center">Admin login</h1>
+          <input type="password" placeholder="Enter Admin PIN" value={pin}
+            onChange={(e) => setPin(e.target.value)} className="border rounded w-full p-2" />
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <button type="submit" className="w-full text-white px-4 py-2 rounded"
+            style={{ backgroundColor: "#0097b2" }}>Login as Admin</button>
+          <button type="button" className="w-full border px-4 py-2 rounded"
+            onClick={() => { setIsAdminLogin(false); setError(""); }}>Back</button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="welcome-screen min-h-screen flex items-center justify-center">
@@ -450,6 +477,7 @@ function UserSelect({ onSubmit }) {
         <img src="logo.png" alt="Simple Christian Catechism Logo"
           className="w-28 h-28 mx-auto mb-2 rounded" />
         <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
+        <p className="text-sm text-center text-gray-600">Choose a nickname to save quiz points, or continue as a guest.</p>
 
         <input type="text" placeholder="Enter your nickname"
           value={name} onChange={(e) => setName(e.target.value)}
@@ -470,6 +498,8 @@ function UserSelect({ onSubmit }) {
         <p className="text-xs text-center text-gray-500">
           Guests can play without saving a score to the leaderboard.
         </p>
+        <button type="button" className="w-full text-xs text-gray-500 underline"
+          onClick={() => { setIsAdminLogin(true); setError(""); }}>Admin login</button>
       </form>
     </div>
   );
