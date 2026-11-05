@@ -16,7 +16,7 @@ function questionsForPart(questions, part) {
 }
 
 function isAvailable(question, unlockedIds) {
-  return (question.id >= 19 && question.id <= 31) || unlockedIds.includes(question.id);
+  return unlockedIds.includes(question.id);
 }
 
 function PartPicker({ value, onChange, questions }) {
@@ -36,35 +36,21 @@ function PartPicker({ value, onChange, questions }) {
 function transformYouTubeURL(urlOrId) {
   if (!urlOrId) return "";
   const s = String(urlOrId).trim();
-  if (s.includes("1zblTCsThDE")) return "";
-
-  // Already an /embed/ URL
-  if (s.includes("/embed/")) return s;
-
-  // Shorts (e.g., https://www.youtube.com/shorts/VIDEOID?si=...)
-  if (s.includes("youtube.com/shorts/")) {
-    const id = s.split("/shorts/")[1]?.split(/[?&]/)[0] || "";
-    return id ? `https://www.youtube.com/embed/${id}` : "";
+  let id = /^[A-Za-z0-9_-]{11}$/.test(s) ? s : "";
+  if (!id) {
+    try {
+      const url = new URL(s);
+      if (url.protocol !== "https:") return "";
+      const host = url.hostname.toLowerCase();
+      if (host === "youtu.be") id = url.pathname.slice(1);
+      else if (["youtube.com", "www.youtube.com", "m.youtube.com", "www.youtube-nocookie.com"].includes(host)) {
+        if (url.pathname === "/watch") id = url.searchParams.get("v") || "";
+        else if (url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/embed/")) id = url.pathname.split("/")[2] || "";
+      }
+    } catch (_) { return ""; }
   }
-
-  // Standard watch URL
-  if (s.includes("youtube.com/watch?v=")) {
-    const id = s.split("v=")[1]?.split("&")[0] || "";
-    return id ? `https://www.youtube.com/embed/${id}` : "";
-  }
-
-  // Short youtu.be
-  if (s.includes("youtu.be/")) {
-    const id = s.split("youtu.be/")[1]?.split(/[?&]/)[0] || "";
-    return id ? `https://www.youtube.com/embed/${id}` : "";
-  }
-
-  // Plain 11-char ID
-  if (/^[A-Za-z0-9_-]{11}$/.test(s)) {
-    return `https://www.youtube.com/embed/${s}`;
-  }
-
-  return "";
+  return /^[A-Za-z0-9_-]{11}$/.test(id) && id !== "1zblTCsThDE"
+    ? `https://www.youtube.com/embed/${id}` : "";
 }
 
 // Detect Shorts so we can use a 9:16 frame
@@ -133,7 +119,19 @@ function generateFillBlankData(questions, currentIndex, blankCount = 3) {
 
 /* --------------------------------- App ------------------------------------ */
 function App() {
-  const [questions, setQuestions] = useState([]);
+  const [baseQuestions, setBaseQuestions] = useState([]);
+  const [questionEdits, setQuestionEdits] = useState({});
+  const questions = useMemo(() => baseQuestions.map((question) => {
+    const edit = questionEdits[question.id];
+    if (!edit || typeof edit !== "object") return question;
+    return {
+      ...question,
+      question: typeof edit.question === "string" ? edit.question : question.question,
+      answer: typeof edit.answer === "string" ? edit.answer : question.answer,
+      song: typeof edit.song === "string" ? edit.song : question.song,
+      sermon: typeof edit.sermon === "string" ? edit.sermon : question.sermon,
+    };
+  }), [baseQuestions, questionEdits]);
   const [unlockedIds, setUnlockedIds] = useState([]);
   const [view, setView] = useState('home');
   const [part, setPart] = useState('part1');
@@ -165,7 +163,7 @@ function App() {
         if (!response.ok) throw new Error(`Question file could not be loaded (${response.status}).`);
         return response.json();
       })
-      .then((data) => { if (active) setQuestions(data); })
+      .then((data) => { if (active) setBaseQuestions(data); })
       .catch((error) => { if (active) setLoadError(error.message); });
     if (CLOUD_PAUSED) {
       setUnlockedIds(Array.from({ length: 31 }, (_, index) => index + 1));
@@ -180,8 +178,38 @@ function App() {
         console.error(error);
       }
     );
-    return () => { active = false; unlockedRef.off('value'); };
+    const editsRef = db.ref('/questionEdits');
+    editsRef.on('value', (snapshot) => {
+      if (active) setQuestionEdits(snapshot.val() || {});
+    }, (error) => console.error('Could not load question edits', error));
+    return () => { active = false; unlockedRef.off('value'); editsRef.off('value'); };
   }, []);
+
+  const saveQuestionEdit = async (id, draft) => {
+    if (CLOUD_PAUSED || firebaseUser?.uid !== ADMIN_UID || id < 1 || id > 31) {
+      throw new Error('Admin sign-in required.');
+    }
+    const edit = {
+      question: String(draft.question || '').trim(),
+      answer: String(draft.answer || '').trim(),
+      song: String(draft.song || '').trim(),
+      sermon: String(draft.sermon || '').trim(),
+    };
+    if (!edit.question || edit.question.length > 300 || !edit.answer || edit.answer.length > 3000) {
+      throw new Error('Enter a question and answer. The question can be up to 300 characters and the answer up to 3,000.');
+    }
+    if ([edit.song, edit.sermon].some((link) => link && (link.length > 300 || !transformYouTubeURL(link)))) {
+      throw new Error('Use a valid YouTube watch or Shorts link, or leave the box empty to switch that video off.');
+    }
+    await db.ref(`/questionEdits/${id}`).set(edit);
+  };
+
+  const restoreQuestion = async (id) => {
+    if (CLOUD_PAUSED || firebaseUser?.uid !== ADMIN_UID || id < 1 || id > 31) {
+      throw new Error('Admin sign-in required.');
+    }
+    await db.ref(`/questionEdits/${id}`).remove();
+  };
 
   const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
     if (CLOUD_PAUSED || firebaseUser?.uid !== ADMIN_UID) return Promise.reject(new Error("Admin sign-in required."));
@@ -192,7 +220,7 @@ function App() {
   };
 
   const handleUnlockNext = () => {
-    const sorted = questions.filter((q) => q.id <= 18).sort((a, b) => a.id - b.id);
+    const sorted = questions.filter((q) => q.id <= 31).sort((a, b) => a.id - b.id);
     const locked = sorted.find((q) => !isAvailable(q, unlockedIds));
     if (locked) {
       updateUnlockedIdsInFirebase([...unlockedIds, locked.id]).catch(console.error);
@@ -267,10 +295,13 @@ function App() {
           <div>Loading…</div>
         ) : adminMode ? (
           <AdminView
-            questions={questions.filter((q) => q.id <= 18)}
+            questions={questions.filter((q) => q.id <= 31)}
+            editedIds={questionEdits}
             unlockedIds={unlockedIds}
             setUnlockedIds={updateUnlockedIdsInFirebase}
             handleUnlockNext={handleUnlockNext}
+            onSaveQuestion={saveQuestionEdit}
+            onRestoreQuestion={restoreQuestion}
           />
         ) : view === "home" ? (
           <HomeScreen onNavigate={setView} onPartChange={setPart} />
@@ -502,7 +533,10 @@ function UserSelect({ onSubmit, onAdminSignIn }) {
 }
 
 /* ------------------------------- Admin ------------------------------------ */
-function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext }) {
+function AdminView({ questions, editedIds, unlockedIds, setUnlockedIds, handleUnlockNext, onSaveQuestion, onRestoreQuestion }) {
+  const [adminPart, setAdminPart] = useState('part1');
+  const [editingId, setEditingId] = useState(null);
+  const visible = questionsForPart(questions, adminPart);
   const toggleUnlocked = (id) => {
     const next = unlockedIds.includes(id)
       ? unlockedIds.filter((u) => u !== id)
@@ -513,9 +547,12 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext })
   const unlockAll = () => setUnlockedIds([...new Set([...unlockedIds, ...questions.map((q) => q.id)])]).catch(console.error);
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-600">Part 2 is available to everyone. Media links are published with the app, so they cannot be changed from this screen.</p>
-      <div className="flex space-x-2">
+    <div className="content-page space-y-5">
+      <div className="page-heading"><span className="eyebrow">ADMIN</span><h1>Manage questions</h1>
+        <p>Edit answers and video links, or choose which questions visitors can see. Saved edits appear on the site straight away.</p>
+      </div>
+      <PartPicker value={adminPart} onChange={(value) => { setAdminPart(value); setEditingId(null); }} questions={questions} />
+      <div className="flex flex-wrap gap-2">
         <button className="text-white px-4 py-2 rounded"
           style={{ backgroundColor: "#22c55e" }} onClick={handleUnlockNext}>
           Unlock Next
@@ -525,40 +562,73 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext })
           Unlock All
         </button>
       </div>
-
-      <div className="overflow-auto max-h-[70vh]">
-        <table className="min-w-full border text-sm">
-          <thead>
-            <tr>
-              <th className="border px-2 py-1 text-left">#</th>
-              <th className="border px-2 py-1 text-left">Question</th>
-              <th className="border px-2 py-1 text-center">Unlocked</th>
-              <th className="border px-2 py-1 text-left">Song</th>
-              <th className="border px-2 py-1 text-left">Mini sermon</th>
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map((q) => (
-              <tr key={q.id} className="odd:bg-gray-50">
-                <td className="border px-2 py-1 whitespace-nowrap">{q.id}</td>
-                <td className="border px-2 py-1">
-                  <div className="max-w-xs truncate" title={q.question}>{q.question}</div>
-                </td>
-                <td className="border px-2 py-1 text-center">
-                  <input type="checkbox"
-                    checked={isAvailable(q, unlockedIds)}
-                    disabled={q.id >= 19 && q.id <= 31}
-                    onChange={() => toggleUnlocked(q.id)} />
-                </td>
-
-                <td className="border px-2 py-1">{q.song ? "Linked" : "Off"}</td>
-                <td className="border px-2 py-1">{q.sermon ? "Linked" : "Off"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="question-list">
+        {visible.map((q) => (
+          <section key={q.id} className="bg-white rounded-xl shadow p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-gray-600">{adminPart === 'part1' ? 'Part 1' : 'Part 2'} · Question {adminPart === 'part1' ? q.id : q.id - 18}</span>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={isAvailable(q, unlockedIds)} onChange={() => toggleUnlocked(q.id)} /> Available
+              </label>
+            </div>
+            <h2 className="font-semibold">{q.question}</h2>
+            <p className="text-sm text-gray-600">Song: {q.song ? 'Linked' : 'Off'} · Mini sermon: {q.sermon ? 'Linked' : 'Off'}</p>
+            <button type="button" className="text-sm font-semibold underline" style={{ color: '#007e98' }}
+              onClick={() => setEditingId(editingId === q.id ? null : q.id)}>
+              {editingId === q.id ? 'Close editor' : 'Edit question and videos'}
+            </button>
+            {editingId === q.id && <QuestionEditForm key={q.id} question={q} hasEdit={Boolean(editedIds[q.id])}
+              onSave={(draft) => onSaveQuestion(q.id, draft)}
+              onRestore={() => onRestoreQuestion(q.id)}
+              onClose={() => setEditingId(null)} />}
+          </section>
+        ))}
       </div>
     </div>
+  );
+}
+
+function QuestionEditForm({ question, hasEdit, onSave, onRestore, onClose }) {
+  const [draft, setDraft] = useState({ question: question.question, answer: question.answer, song: question.song || '', sermon: question.sermon || '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const update = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  const save = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError('');
+    try { await onSave(draft); onClose(); }
+    catch (err) { setError(err.message || 'Could not save this question.'); }
+    finally { setBusy(false); }
+  };
+  const restore = async () => {
+    if (!window.confirm('Restore the published question, answer and video links?')) return;
+    setBusy(true); setError('');
+    try { await onRestore(); onClose(); }
+    catch (err) { setError(err.message || 'Could not restore this question.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <form onSubmit={save} className="border-t pt-4 space-y-3">
+      <label className="block text-sm font-medium">Question
+        <textarea required maxLength={300} rows={2} value={draft.question} onChange={(e) => update('question', e.target.value)} className="border rounded w-full p-2 mt-1" />
+      </label>
+      <label className="block text-sm font-medium">Answer
+        <textarea required maxLength={3000} rows={5} value={draft.answer} onChange={(e) => update('answer', e.target.value)} className="border rounded w-full p-2 mt-1" />
+      </label>
+      <label className="block text-sm font-medium">Song YouTube URL
+        <input type="url" maxLength={300} placeholder="https://www.youtube.com/watch?v=…" value={draft.song} onChange={(e) => update('song', e.target.value)} className="border rounded w-full p-2 mt-1" />
+      </label>
+      <label className="block text-sm font-medium">Mini sermon YouTube URL
+        <input type="url" maxLength={300} placeholder="https://www.youtube.com/shorts/…" value={draft.sermon} onChange={(e) => update('sermon', e.target.value)} className="border rounded w-full p-2 mt-1" />
+      </label>
+      <p className="text-xs text-gray-600">Leave either video box empty to switch that video off.</p>
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={busy} className="text-white px-4 py-2 rounded" style={{ backgroundColor: '#0097b2' }}>{busy ? 'Saving…' : 'Save changes'}</button>
+        <button type="button" disabled={busy} onClick={onClose} className="border px-4 py-2 rounded">Cancel</button>
+        {hasEdit && <button type="button" disabled={busy} onClick={restore} className="text-sm underline px-2">Restore published version</button>}
+      </div>
+    </form>
   );
 }
 

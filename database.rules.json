@@ -6,6 +6,28 @@
       ".read": true,
       ".write": "auth != null && auth.uid === 'R0XtUV4I1pdOhBTMJLiQEpuH7e32'"
     },
+    "questionEdits": {
+      ".read": true,
+      "$id": {
+        ".write": "auth != null && auth.uid === 'R0XtUV4I1pdOhBTMJLiQEpuH7e32'",
+        ".validate": "newData.hasChildren(['question', 'answer', 'song', 'sermon'])",
+        "question": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 300"
+        },
+        "answer": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 3000"
+        },
+        "song": {
+          ".validate": "newData.isString() && newData.val().length <= 300"
+        },
+        "sermon": {
+          ".validate": "newData.isString() && newData.val().length <= 300"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "scores": {
       ".read": "auth != null",
       ".indexOn": ["points"],
