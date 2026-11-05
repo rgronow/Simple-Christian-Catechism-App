@@ -621,7 +621,7 @@ function QuestionCard({ question }) {
           <button className="px-3 py-1 rounded text-white"
             style={{ backgroundColor: "#0097b2" }}
             onClick={() => setShowSermon((s) => !s)}>
-            {showSermon ? "Hide Sermon" : "2-min Sermon"}
+            {showSermon ? "Hide mini sermon" : "Mini sermon"}
           </button>
         )}
       </div>
@@ -645,7 +645,7 @@ function QuestionCard({ question }) {
             {...iframeCommon}
             style={{ aspectRatio: sermonIsShorts ? "9 / 16" : "16 / 9", height: "auto" }}
             src={sermonEmbed}
-            title="2-min Sermon"
+            title="Mini sermon"
           ></iframe>
         </div>
       )}
