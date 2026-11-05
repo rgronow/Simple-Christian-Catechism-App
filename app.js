@@ -1,5 +1,33 @@
 // app.js - Firebase + Lightweight Identity + HomeScreen + Leaderboard + Scoring
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
+
+const PARTS = [
+  { id: "part1", label: "Part 1", title: "God, creation & our need", start: 1, end: 18 },
+  { id: "part2", label: "Part 2", title: "The Redeemer & salvation", start: 19, end: 31 },
+  { id: "more", label: "More", title: "Growing in faith", start: 32, end: Infinity },
+];
+
+function questionsForPart(questions, part) {
+  const section = PARTS.find((item) => item.id === part) || PARTS[0];
+  return questions.filter((q) => q.id >= section.start && q.id <= section.end);
+}
+
+function isAvailable(question, unlockedIds) {
+  return (question.id >= 19 && question.id <= 31) || unlockedIds.includes(question.id);
+}
+
+function PartPicker({ value, onChange, questions }) {
+  return (
+    <div className="part-picker" role="group" aria-label="Catechism part">
+      {PARTS.filter((part) => questionsForPart(questions, part.id).length).map((part) => (
+        <button key={part.id} type="button" className={value === part.id ? "part-choice active" : "part-choice"}
+          aria-pressed={value === part.id} onClick={() => onChange(part.id)}>
+          <span>{part.label}</span><small>{part.title}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /* ----------------------------- YT URL Helpers ----------------------------- */
 function transformYouTubeURL(urlOrId) {
@@ -103,40 +131,69 @@ function App() {
   const [questions, setQuestions] = useState([]);
   const [unlockedIds, setUnlockedIds] = useState([]);
   const [view, setView] = useState('home');
+  const [part, setPart] = useState('part1');
   const [adminMode, setAdminMode] = useState(false);
   const [adminAuth, setAdminAuth] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
 
   useEffect(() => {
-    const unsubscribe = dbRef.on(
+    let active = true;
+    let localQuestions = [];
+    let liveQuestions = [];
+    const combine = () => {
+      if (!active) return;
+      const liveById = new Map(liveQuestions.map((q) => [Number(q.id), q]));
+      setQuestions(localQuestions.map((q) => {
+        const live = liveById.get(q.id) || {};
+        const bookletQuestion = q.id >= 19 && q.id <= 31;
+        return {
+          ...q,
+          question: bookletQuestion ? q.question : (live.question || q.question),
+          answer: bookletQuestion ? q.answer : (live.answer || q.answer),
+          song: live.song || q.song,
+          sermon: live.sermon || q.sermon,
+          youtube: live.youtube || q.youtube,
+        };
+      }));
+    };
+    fetch('./catechism.json')
+      .then((response) => {
+        if (!response.ok) throw new Error(`Question file could not be loaded (${response.status}).`);
+        return response.json();
+      })
+      .then((data) => { localQuestions = data; combine(); })
+      .catch((error) => { if (active) setLoadError(error.message); });
+    dbRef.on(
       "value",
       (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          setQuestions((data.questions || []).filter(Boolean));
-          setUnlockedIds(data.unlockedIds || []);
-        } else {
-          setLoadError("No data found in the database.");
+          liveQuestions = Object.values(data.questions || {}).filter(Boolean);
+          combine();
+          setUnlockedIds(Object.values(data.unlockedIds || {}).map(Number));
         }
       },
       (error) => {
         console.error(error);
-        setLoadError(error.message);
       }
     );
-    return () => unsubscribe();
+    return () => { active = false; dbRef.off('value'); };
   }, []);
 
   const updateUnlockedIdsInFirebase = (newUnlockedIds) =>
     db.ref(`/unlockedIds`).set(newUnlockedIds);
 
   const updateQuestionInFirebase = (updatedQuestion) =>
-    db.ref(`/questions/${updatedQuestion.id}`).set(updatedQuestion);
+    db.ref(`/questions/${updatedQuestion.id}`).update({
+      id: updatedQuestion.id,
+      song: updatedQuestion.song || "",
+      sermon: updatedQuestion.sermon || "",
+    });
 
   const handleUnlockNext = () => {
     const sorted = [...questions].sort((a, b) => a.id - b.id);
-    const locked = sorted.find((q) => !unlockedIds.includes(q.id));
+    const locked = sorted.find((q) => !isAvailable(q, unlockedIds));
     if (locked) {
       updateUnlockedIdsInFirebase([...unlockedIds, locked.id]);
     }
@@ -172,32 +229,28 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="app-shell min-h-screen flex flex-col">
       {/* HEADER */}
-      <header className="shadow" style={{ backgroundColor: "#ffbd59" }}>
-        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold mb-2 sm:mb-0 text-center sm:text-left text-white">
-            Simple Christian Catechism
-          </h1>
-          <nav className="flex flex-wrap justify-center gap-2">
-            <button className="px-3 py-1 rounded text-white"
-              style={{ backgroundColor: view === "home" ? "#0097b2" : "#33c0d4" }}
+      <header className="site-header">
+        <div className="header-inner">
+          <button className="brand" onClick={() => setView('home')} aria-label="Simple Christian Catechism home">
+            <img src="logo.png" alt="" /><span>Simple Christian<br />Catechism</span>
+          </button>
+          <nav className="main-nav" aria-label="Main navigation">
+            <button className={view === 'home' ? 'active' : ''}
               onClick={() => setView("home")}>Home</button>
-            <button className="px-3 py-1 rounded text-white"
-              style={{ backgroundColor: view === "learn" ? "#0097b2" : "#33c0d4" }}
+            <button className={view === 'learn' ? 'active' : ''}
               onClick={() => setView("learn")}>Learn</button>
-            <button className="px-3 py-1 rounded text-white"
-              style={{ backgroundColor: view === "games" ? "#0097b2" : "#33c0d4" }}
+            <button className={view === 'games' ? 'active' : ''}
               onClick={() => setView("games")}>Games</button>
-            <button className="px-3 py-1 rounded text-white"
-              style={{ backgroundColor: view === "leaderboard" ? "#0097b2" : "#33c0d4" }}
+            <button className={view === 'leaderboard' ? 'active' : ''}
               onClick={() => setView("leaderboard")}>Leaderboard</button>
           </nav>
         </div>
       </header>
 
       {/* MAIN */}
-      <main className="flex-1 max-w-5xl mx-auto p-4">
+      <main className="main-content flex-1">
         {loadError ? (
           <div className="text-red-600">Error loading data: {loadError}</div>
         ) : questions.length === 0 ? (
@@ -211,13 +264,15 @@ function App() {
             updateQuestion={updateQuestionInFirebase}
           />
         ) : view === "home" ? (
-          <HomeScreen onNavigate={setView} />
+          <HomeScreen onNavigate={setView} onPartChange={setPart} />
         ) : view === "learn" ? (
-          <LearnView questions={questions} unlockedIds={unlockedIds} />
+          <LearnView questions={questions} unlockedIds={unlockedIds} part={part} setPart={setPart} />
         ) : view === "games" ? (
           <GamesView
             questions={questions}
             unlockedIds={unlockedIds}
+            part={part}
+            setPart={setPart}
             awardPoints={(amt) => awardPoints(user, amt)}
           />
         ) : view === "leaderboard" ? (
@@ -226,7 +281,7 @@ function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-gray-100 border-t p-4 text-center space-x-2">
+      <footer className="site-footer">
         <span className="text-sm text-gray-600 mr-4">
           User: {user === "__guest__" ? "Guest" : user}
         </span>
@@ -277,39 +332,36 @@ function App() {
 }
 
 /* ------------------------------ Screens ----------------------------------- */
-function HomeScreen({ onNavigate }) {
+function HomeScreen({ onNavigate, onPartChange }) {
   return (
-    <div className="max-w-2xl mx-auto text-center space-y-6">
-      <h2 className="text-2xl font-bold">Welcome!</h2>
-      <p className="text-gray-700">
-        This app helps you learn the Simple Christian Catechism through reading,
-        reflection, and interactive games.
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="p-4 bg-white shadow rounded space-y-2">
-          <h3 className="font-semibold" style={{ color: "#0097b2" }}>Learn</h3>
-          <p className="text-sm text-gray-600">
-            Read each question, see the answer, and watch the song or **2-min sermon**.
-          </p>
-          <button className="px-4 py-2 rounded text-white"
-            style={{ backgroundColor: "#0097b2" }}
-            onClick={() => onNavigate("learn")}>
-            Go to Learn
-          </button>
+    <div className="home-page">
+      <section className="hero">
+        <div className="eyebrow">A simple way to learn the Christian faith</div>
+        <h1>Small questions.<br /><em>Lasting truth.</em></h1>
+        <p>Read the catechism, take your time with each answer, and practise what you have learned.</p>
+        <div className="hero-actions">
+          <button className="primary-action" onClick={() => { onPartChange('part2'); onNavigate('learn'); }}>Explore Part 2 <span aria-hidden="true">→</span></button>
+          <button className="secondary-action" onClick={() => { onPartChange('part1'); onNavigate('learn'); }}>Start with Part 1</button>
         </div>
-        <div className="p-4 bg-white shadow rounded space-y-2">
-          <h3 className="font-semibold" style={{ color: "#0097b2" }}>Games</h3>
-          <p className="text-sm text-gray-600">
-            Test your knowledge with multiple choice, fill-in-the-blank, and flashcards.
-            Earn points for correct answers!
-          </p>
-          <button className="px-4 py-2 rounded text-white"
-            style={{ backgroundColor: "#0097b2" }}
-            onClick={() => onNavigate("games")}>
-            Go to Games
-          </button>
-        </div>
-      </div>
+        <div className="hero-decoration" aria-hidden="true">✦</div>
+      </section>
+      <section className="home-grid" aria-label="Explore the catechism">
+        <button className="home-tile" onClick={() => { onPartChange('part1'); onNavigate('learn'); }}>
+          <span className="tile-kicker">01 · THE FOUNDATIONS</span>
+          <strong>Part 1</strong><span>God, creation, the law and our need for a Redeemer.</span>
+          <span className="tile-link">Read questions 1–18 →</span>
+        </button>
+        <button className="home-tile featured" onClick={() => { onPartChange('part2'); onNavigate('learn'); }}>
+          <span className="tile-kicker">02 · THE GOOD NEWS</span>
+          <strong>Part 2 <span className="new-badge">New</span></strong><span>The Redeemer, salvation, judgment and our hope.</span>
+          <span className="tile-link">Read questions 1–13 →</span>
+        </button>
+        <button className="home-tile" onClick={() => { onPartChange('part2'); onNavigate('games'); }}>
+          <span className="tile-kicker">LEARN BY DOING</span>
+          <strong>Practise</strong><span>Try multiple choice, fill in the blank, or flashcards.</span>
+          <span className="tile-link">Play the games →</span>
+        </button>
+      </section>
     </div>
   );
 }
@@ -343,7 +395,7 @@ function Leaderboard() {
   if (!rows.length) return <div>No scores yet. Be the first!</div>;
 
   return (
-    <div className="max-w-md mx-auto space-y-4 text-center">
+    <div className="leaderboard-page max-w-md mx-auto space-y-4 text-center">
       <h2 className="text-2xl font-bold">Leaderboard</h2>
       <p className="text-gray-600 text-sm">
         The leaderboard shows the top users based on points earned in the games.
@@ -392,9 +444,9 @@ function UserSelect({ onSubmit }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="welcome-screen min-h-screen flex items-center justify-center">
       <form onSubmit={handleSubmit}
-        className="bg-white shadow-md rounded p-6 space-y-4 w-full max-w-sm">
+        className="welcome-card bg-white p-6 space-y-4 w-full max-w-sm">
         <img src="logo.png" alt="Simple Christian Catechism Logo"
           className="w-28 h-28 mx-auto mb-2 rounded" />
         <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
@@ -416,7 +468,7 @@ function UserSelect({ onSubmit }) {
         </button>
 
         <p className="text-xs text-center text-gray-500">
-          Guests can play and earn points locally (not shown on the global leaderboard).
+          Guests can play without saving a score to the leaderboard.
         </p>
       </form>
     </div>
@@ -466,6 +518,7 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-600">Part 2 is available to everyone. Unlock controls apply to Part 1 and later questions.</p>
       <div className="flex space-x-2">
         <button className="text-white px-4 py-2 rounded"
           style={{ backgroundColor: "#22c55e" }} onClick={handleUnlockNext}>
@@ -497,7 +550,8 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                 </td>
                 <td className="border px-2 py-1 text-center">
                   <input type="checkbox"
-                    checked={unlockedIds.includes(q.id)}
+                    checked={isAvailable(q, unlockedIds)}
+                    disabled={q.id >= 19 && q.id <= 31}
                     onChange={() => toggleUnlocked(q.id)} />
                 </td>
 
@@ -524,18 +578,19 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
 }
 
 /* ----------------------------- Learn & Card ------------------------------- */
-function LearnView({ questions, unlockedIds }) {
-  const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
-  if (unlocked.length === 0) return <div>No questions unlocked yet. Please unlock in admin.</div>;
+function LearnView({ questions, unlockedIds, part, setPart }) {
+  const section = PARTS.find((item) => item.id === part) || PARTS[0];
+  const available = questionsForPart(questions, part).filter((q) => isAvailable(q, unlockedIds));
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-600">
-        Unlocked {unlocked.length} of {questions.length} questions
-      </p>
-      {unlocked.map((q) => (
+    <div className="content-page">
+      <div className="page-heading"><span className="eyebrow">LEARN AT YOUR OWN PACE</span><h1>{section.title}</h1><p>Open a question to reflect on its answer. Return whenever you like.</p></div>
+      <PartPicker value={part} onChange={setPart} questions={questions} />
+      <p className="section-count">{available.length} questions available</p>
+      {available.length === 0 && <div className="empty-state">No questions are available in this part yet.</div>}
+      <div className="question-list">{available.map((q) => (
         <QuestionCard key={q.id} question={q} />
-      ))}
+      ))}</div>
     </div>
   );
 }
@@ -558,16 +613,16 @@ function QuestionCard({ question }) {
   };
 
   return (
-    <div className="bg-white shadow hover:shadow-lg transition rounded p-4 space-y-2">
-      <h2 className="text-lg font-semibold">
-        {question.id}. {question.question}
-      </h2>
+    <article className="question-card">
+      <div className="question-label">{question.id >= 19 && question.id <= 31 ? `PART 2 · QUESTION ${question.id - 18}` : `QUESTION ${question.id}`}</div>
+      <h2>{question.question}</h2>
 
       <div className="flex flex-wrap gap-2">
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
+          aria-expanded={showAnswer}
           onClick={() => setShowAnswer((s) => !s)}>
-          {showAnswer ? "Hide" : "Answer"}
+          {showAnswer ? "Hide answer" : "Read answer"}
         </button>
 
         {songEmbed && (
@@ -587,7 +642,7 @@ function QuestionCard({ question }) {
         )}
       </div>
 
-      {showAnswer && <p className="text-gray-800 leading-relaxed">{question.answer}</p>}
+      {showAnswer && <p className="answer-text">{question.answer}</p>}
 
       {showSong && songEmbed && (
         <div className="mt-2 rounded-lg overflow-hidden shadow-md">
@@ -610,21 +665,24 @@ function QuestionCard({ question }) {
           ></iframe>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
 /* -------------------------------- Games ----------------------------------- */
-function GamesView({ questions, unlockedIds, awardPoints }) {
-  const unlocked = questions.filter((q) => unlockedIds.includes(q.id));
+function GamesView({ questions, unlockedIds, awardPoints, part, setPart }) {
+  const unlocked = useMemo(
+    () => questionsForPart(questions, part).filter((q) => isAvailable(q, unlockedIds)),
+    [questions, unlockedIds, part]
+  );
   const [mode, setMode] = useState("mcq");
-  if (unlocked.length === 0) return <div>No unlocked questions available for games.</div>;
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-600">
-        Unlocked {unlocked.length} of {questions.length} questions
-      </p>
+    <div className="content-page games-page">
+      <div className="page-heading"><span className="eyebrow">PRACTISE WHAT YOU KNOW</span><h1>Learn by playing</h1><p>Choose a part and a way to practise.</p></div>
+      <PartPicker value={part} onChange={setPart} questions={questions} />
+      <p className="section-count">{unlocked.length} questions available</p>
+      {unlocked.length === 0 ? <div className="empty-state">No questions are available in this part yet.</div> : <>
       <div className="flex flex-wrap gap-2 mb-4">
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: mode === "mcq" ? "#0097b2" : "#33c0d4" }}
@@ -637,9 +695,10 @@ function GamesView({ questions, unlockedIds, awardPoints }) {
           onClick={() => setMode("flash")}>Flashcards</button>
       </div>
 
-      {mode === "mcq" && <MCQGame questions={unlocked} awardPoints={awardPoints} />}
-      {mode === "fill" && <FillBlankGame questions={unlocked} awardPoints={awardPoints} />}
-      {mode === "flash" && <FlashcardsGame questions={unlocked} />}
+      {mode === "mcq" && <MCQGame key={`${part}-mcq`} questions={unlocked} awardPoints={awardPoints} />}
+      {mode === "fill" && <FillBlankGame key={`${part}-fill`} questions={unlocked} awardPoints={awardPoints} />}
+      {mode === "flash" && <FlashcardsGame key={`${part}-flash`} questions={unlocked} />}
+      </>}
     </div>
   );
 }
