@@ -1,6 +1,8 @@
-// app.js - Firebase + Lightweight Identity + HomeScreen + Leaderboard + Scoring
+// app.js - Catechism, authenticated scores and admin controls
 const { useState, useEffect, useMemo } = React;
-const CLOUD_PAUSED = true;
+// Publish the matching database rules before deploying this app version.
+const CLOUD_PAUSED = false;
+const ADMIN_UID = "R0XtUV4I1pdOhBTMJLiQEpuH7e32";
 
 const PARTS = [
   { id: "part1", label: "Part 1", title: "God, creation & our need", start: 1, end: 18 },
@@ -14,7 +16,7 @@ function questionsForPart(questions, part) {
 }
 
 function isAvailable(question, unlockedIds) {
-  return question.id <= 31 || unlockedIds.includes(question.id);
+  return (question.id >= 19 && question.id <= 31) || unlockedIds.includes(question.id);
 }
 
 function PartPicker({ value, onChange, questions }) {
@@ -84,6 +86,7 @@ const firebaseConfig = {
 };
 
 if (!CLOUD_PAUSED) firebase.initializeApp(firebaseConfig);
+const auth = CLOUD_PAUSED ? null : firebase.auth();
 const db = CLOUD_PAUSED ? null : firebase.database();
 const unlockedRef = CLOUD_PAUSED ? null : db.ref('/unlockedIds');
 
@@ -135,9 +138,25 @@ function App() {
   const [view, setView] = useState('home');
   const [part, setPart] = useState('part1');
   const [adminMode, setAdminMode] = useState(false);
-  const [adminAuth, setAdminAuth] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [authReady, setAuthReady] = useState(CLOUD_PAUSED);
   const [loadError, setLoadError] = useState(null);
   const [user, setUser] = useState(localStorage.getItem("catechismUser") || "");
+
+  useEffect(() => {
+    if (CLOUD_PAUSED) return;
+    return auth.onAuthStateChanged((currentUser) => {
+      setFirebaseUser(currentUser);
+      setAuthReady(true);
+      if ((!currentUser && user && user !== "__guest__") ||
+          (currentUser && user === "admin" && currentUser.uid !== ADMIN_UID) ||
+          (currentUser?.uid === ADMIN_UID && user && user !== "admin" && user !== "__guest__")) {
+        setUser("");
+        localStorage.removeItem("catechismUser");
+      }
+      if (!currentUser || currentUser.uid !== ADMIN_UID) setAdminMode(false);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -164,44 +183,58 @@ function App() {
     return () => { active = false; unlockedRef.off('value'); };
   }, []);
 
-  const updateUnlockedIdsInFirebase = (newUnlockedIds) =>
-    CLOUD_PAUSED ? Promise.resolve() : db.ref(`/unlockedIds`).set(newUnlockedIds);
+  const updateUnlockedIdsInFirebase = (newUnlockedIds) => {
+    if (CLOUD_PAUSED || firebaseUser?.uid !== ADMIN_UID) return Promise.reject(new Error("Admin sign-in required."));
+    return unlockedRef.set(newUnlockedIds).catch((error) => {
+      alert("Could not save unlock changes. Please check your admin sign-in.");
+      throw error;
+    });
+  };
 
   const handleUnlockNext = () => {
-    const sorted = questions.filter((q) => q.id <= 31).sort((a, b) => a.id - b.id);
+    const sorted = questions.filter((q) => q.id <= 18).sort((a, b) => a.id - b.id);
     const locked = sorted.find((q) => !isAvailable(q, unlockedIds));
     if (locked) {
-      updateUnlockedIdsInFirebase([...unlockedIds, locked.id]);
+      updateUnlockedIdsInFirebase([...unlockedIds, locked.id]).catch(console.error);
     }
   };
 
-  const awardPoints = (username, amount) => {
-    if (CLOUD_PAUSED) return;
-    if (!username || username === "__guest__" || username === "admin") return;
-    const ref = db.ref(`/users/${username}/points`);
-    ref.transaction((curr) => (curr || 0) + amount);
+  const awardPoints = (amount) => {
+    if (CLOUD_PAUSED || !firebaseUser || user === "__guest__" || firebaseUser.uid === ADMIN_UID) return;
+    if (!Number.isInteger(amount) || amount < 1 || amount > 20) return;
+    db.ref(`/scores/${firebaseUser.uid}/points`).transaction((curr) => Math.max(0, curr || 0) + amount)
+      .catch((error) => console.error("Could not save points", error));
   };
+
+  if (!authReady) return <div className="p-6">Connecting…</div>;
 
   if (!user) {
     return (
       <UserSelect
-        onSubmit={(name) => {
+        onSubmit={async (name) => {
+          if (!CLOUD_PAUSED && name !== "__guest__") {
+            const currentUser = auth.currentUser && auth.currentUser.uid !== ADMIN_UID
+              ? auth.currentUser
+              : (await auth.signInAnonymously()).user;
+            await db.ref(`/scores/${currentUser.uid}/name`).set(name);
+            const pointsRef = db.ref(`/scores/${currentUser.uid}/points`);
+            const existing = await pointsRef.once("value");
+            if (!existing.exists()) await pointsRef.set(0);
+          }
           setUser(name);
           localStorage.setItem("catechismUser", name);
         }}
+        onAdminSignIn={async (email, password) => {
+          const credential = await auth.signInWithEmailAndPassword(email, password);
+          if (credential.user.uid !== ADMIN_UID) {
+            await auth.signOut();
+            throw new Error("This account is not the app administrator.");
+          }
+          setUser("admin");
+          localStorage.setItem("catechismUser", "admin");
+          setAdminMode(true);
+        }}
       />
-    );
-  }
-
-  if (adminMode && !adminAuth) {
-    return (
-      <div className="p-4 max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Admin Login</h1>
-        <AdminLogin
-          onSuccess={() => setAdminAuth(true)}
-          onCancel={() => setAdminMode(false)}
-        />
-      </div>
     );
   }
 
@@ -234,7 +267,7 @@ function App() {
           <div>Loading…</div>
         ) : adminMode ? (
           <AdminView
-            questions={questions.filter((q) => q.id <= 31)}
+            questions={questions.filter((q) => q.id <= 18)}
             unlockedIds={unlockedIds}
             setUnlockedIds={updateUnlockedIdsInFirebase}
             handleUnlockNext={handleUnlockNext}
@@ -249,10 +282,10 @@ function App() {
             unlockedIds={unlockedIds}
             part={part}
             setPart={setPart}
-            awardPoints={(amt) => awardPoints(user, amt)}
+            awardPoints={awardPoints}
           />
         ) : view === "leaderboard" ? (
-          <Leaderboard />
+          <Leaderboard firebaseUser={firebaseUser} />
         ) : null}
       </main>
 
@@ -262,46 +295,22 @@ function App() {
           User: {user === "__guest__" ? "Guest" : user}
         </span>
 
-        {!CLOUD_PAUSED && <button className="px-3 py-1 rounded text-white"
+        {!CLOUD_PAUSED && firebaseUser?.uid === ADMIN_UID && <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
-          onClick={() => {
-            setAdminMode(!adminMode);
-            if (adminMode) setAdminAuth(false);
-          }}>
+          onClick={() => setAdminMode(!adminMode)}>
           {adminMode ? "Close Admin" : "Admin"}
         </button>}
 
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
-          onClick={() => {
+          onClick={async () => {
+            if (!CLOUD_PAUSED) await auth.signOut();
             setUser("");
             localStorage.removeItem("catechismUser");
+            setAdminMode(false);
           }}>
           Switch User
         </button>
-
-        {!CLOUD_PAUSED && <button className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: "#ef4444" }}
-          disabled={user === "admin" || user === "__guest__"}
-          onClick={() => {
-            if (!user || user === "admin" || user === "__guest__") return;
-            const ok = window.confirm(
-              `Delete user "${user}" and all their points? This cannot be undone.`
-            );
-            if (!ok) return;
-            db.ref(`/users/${user}/points`).remove()
-              .then(() => {
-                localStorage.removeItem("catechismUser");
-                setUser("");
-                alert("User deleted.");
-              })
-              .catch((err) => {
-                console.error(err);
-                alert("Sorry, something went wrong deleting this user.");
-              });
-          }}>
-          Delete User
-        </button>}
       </footer>
     </div>
   );
@@ -343,30 +352,35 @@ function HomeScreen({ onNavigate, onPartChange }) {
 }
 
 /* ------------------------------ Leaderboard ------------------------------- */
-function Leaderboard() {
+function Leaderboard({ firebaseUser }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const ref = db.ref("/users").orderByChild("points").limitToLast(10);
+    if (!firebaseUser) return;
+    const ref = db.ref("/scores").orderByChild("points").limitToLast(10);
     const handler = ref.on("value", (snap) => {
       const val = snap.val() || {};
       const list = Object.entries(val)
-        .filter(([name]) => name !== "admin" && name !== "__guest__")
-        .map(([name, data]) => ({
-          name,
+        .map(([uid, data]) => ({
+          uid,
+          name: String((data && data.name) || "Player"),
           points: Number((data && data.points) || 0),
         }))
         .sort((a, b) => b.points - a.points);
       setRows(list);
       setLoading(false);
+    }, (error) => {
+      console.error("Could not load leaderboard", error);
+      setLoading(false);
     });
     return () => ref.off("value", handler);
-  }, []);
+  }, [firebaseUser?.uid]);
 
   const formatName = (name) =>
     name ? name.charAt(0).toUpperCase() + name.slice(1) : "";
 
+  if (!firebaseUser) return <div className="content-page">Select “Switch User” below, then choose a nickname to see the leaderboard.</div>;
   if (loading) return <div>Loading…</div>;
   if (!rows.length) return <div>No scores yet. Be the first!</div>;
 
@@ -380,7 +394,7 @@ function Leaderboard() {
       <h3 className="text-lg font-medium mt-4">Top 10</h3>
       <ol className="bg-white shadow rounded divide-y">
         {rows.map((r, i) => (
-          <li key={r.name} className="flex items-center justify-between px-3 py-2">
+          <li key={r.uid} className="flex items-center justify-between px-3 py-2">
             <span className="font-medium">{i + 1}. {formatName(r.name)}</span>
             <span className="ml-4 tabular-nums">{r.points} pts</span>
           </li>
@@ -391,40 +405,28 @@ function Leaderboard() {
 }
 
 /* ------------------------------ User Select ------------------------------- */
-function UserSelect({ onSubmit }) {
+function UserSelect({ onSubmit, onAdminSignIn }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [isAdminLogin, setIsAdminLogin] = useState(false);
-  const [pin, setPin] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nickname = name.trim().toLowerCase();
     if (!nickname) return;
-    if (nickname === "admin") {
-      if (CLOUD_PAUSED) {
-        setError("Admin controls are temporarily paused while we secure the database.");
-        return;
-      }
-      setIsAdminLogin(true);
-      return;
-    }
-
-    if (CLOUD_PAUSED) {
-      onSubmit(nickname);
-      return;
-    }
-
+    if (nickname.length > 24) return setError("Please use 24 characters or fewer.");
+    if (nickname === "admin" || nickname === "__guest__") return setError("Please choose a different nickname.");
+    setBusy(true);
     try {
-      const ref = db.ref(`/users/${nickname}/points`);
-      const snap = await ref.once("value");
-      if (!snap.exists()) {
-        await ref.set(0);
-      }
-      onSubmit(nickname);
+      await onSubmit(nickname);
     } catch (err) {
       console.error(err);
-      setError("Something went wrong. Please try again.");
+      setError("Could not save your nickname. Please try again, or continue as a guest.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -432,10 +434,17 @@ function UserSelect({ onSubmit }) {
     onSubmit("__guest__");
   };
 
-  const handleAdminLogin = (e) => {
+  const handleAdminLogin = async (e) => {
     e.preventDefault();
-    if (pin === "godfirst") onSubmit("admin");
-    else setError("Invalid Admin PIN");
+    setBusy(true);
+    setError("");
+    try {
+      await onAdminSignIn(email, password);
+    } catch (err) {
+      setError(err.message || "Admin sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (isAdminLogin) {
@@ -443,10 +452,12 @@ function UserSelect({ onSubmit }) {
       <div className="welcome-screen min-h-screen flex items-center justify-center">
         <form onSubmit={handleAdminLogin} className="welcome-card bg-white p-6 space-y-4 w-full max-w-sm">
           <h1 className="text-xl font-semibold text-center">Admin login</h1>
-          <input type="password" placeholder="Enter Admin PIN" value={pin}
-            onChange={(e) => setPin(e.target.value)} className="border rounded w-full p-2" />
+          <input type="email" autoComplete="username" required placeholder="Admin email" value={email}
+            onChange={(e) => setEmail(e.target.value)} className="border rounded w-full p-2" />
+          <input type="password" autoComplete="current-password" required placeholder="Password" value={password}
+            onChange={(e) => setPassword(e.target.value)} className="border rounded w-full p-2" />
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button type="submit" className="w-full text-white px-4 py-2 rounded"
+          <button type="submit" disabled={busy} className="w-full text-white px-4 py-2 rounded"
             style={{ backgroundColor: "#0097b2" }}>Login as Admin</button>
           <button type="button" className="w-full border px-4 py-2 rounded"
             onClick={() => { setIsAdminLogin(false); setError(""); }}>Back</button>
@@ -462,7 +473,7 @@ function UserSelect({ onSubmit }) {
         <img src="logo.png" alt="Simple Christian Catechism Logo"
           className="w-28 h-28 mx-auto mb-2 rounded" />
         <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
-        <p className="text-sm text-center text-gray-600">Choose a name for this device, or continue as a guest. Cloud scores are temporarily paused.</p>
+        <p className="text-sm text-center text-gray-600">Choose a name for this device, or continue as a guest. {CLOUD_PAUSED ? "Cloud scores are temporarily paused." : "Scores stay with this browser unless you clear its data or switch users."}</p>
 
         <input type="text" placeholder="Enter your nickname"
           value={name} onChange={(e) => setName(e.target.value)}
@@ -470,7 +481,7 @@ function UserSelect({ onSubmit }) {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <button type="submit" className="w-full text-white px-4 py-2 rounded"
+        <button type="submit" disabled={busy} className="w-full text-white px-4 py-2 rounded"
           style={{ backgroundColor: "#0097b2" }}>
           Continue
         </button>
@@ -491,40 +502,15 @@ function UserSelect({ onSubmit }) {
 }
 
 /* ------------------------------- Admin ------------------------------------ */
-function AdminLogin({ onSuccess, onCancel }) {
-  const [pin, setPin] = useState("");
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (pin === "godfirst") onSuccess();
-    else alert("Invalid PIN");
-  };
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">Enter Admin PIN</label>
-        <input type="password" value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          className="border rounded w-full p-2" />
-      </div>
-      <div className="flex space-x-2">
-        <button type="submit" className="text-white px-4 py-2 rounded"
-          style={{ backgroundColor: "#0097b2" }}>Login</button>
-        <button type="button" className="bg-gray-300 px-4 py-2 rounded"
-          onClick={onCancel}>Cancel</button>
-      </div>
-    </form>
-  );
-}
-
 function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext }) {
   const toggleUnlocked = (id) => {
     const next = unlockedIds.includes(id)
       ? unlockedIds.filter((u) => u !== id)
       : [...unlockedIds, id];
-    setUnlockedIds(next);
+    setUnlockedIds(next).catch(console.error);
   };
 
-  const unlockAll = () => setUnlockedIds(questions.map((q) => q.id));
+  const unlockAll = () => setUnlockedIds([...new Set([...unlockedIds, ...questions.map((q) => q.id)])]).catch(console.error);
 
   return (
     <div className="space-y-4">

@@ -1,0 +1,26 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "unlockedIds": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'R0XtUV4I1pdOhBTMJLiQEpuH7e32'"
+    },
+    "scores": {
+      ".read": "auth != null",
+      ".indexOn": ["points"],
+      "$uid": {
+        "name": {
+          ".write": "auth != null && auth.uid === $uid && newData.exists()",
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24"
+        },
+        "points": {
+          ".write": "auth != null && auth.uid === $uid && newData.exists() && newData.isNumber() && newData.val() >= 0 && (!data.exists() ? newData.val() === 0 : newData.val() >= data.val() && newData.val() <= data.val() + 20)"
+        },
+        "$other": {
+          ".write": false
+        }
+      }
+    }
+  }
+}
