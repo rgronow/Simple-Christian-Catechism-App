@@ -1,5 +1,6 @@
 // app.js - Firebase + Lightweight Identity + HomeScreen + Leaderboard + Scoring
 const { useState, useEffect, useMemo } = React;
+const CLOUD_PAUSED = true;
 
 const PARTS = [
   { id: "part1", label: "Part 1", title: "God, creation & our need", start: 1, end: 18 },
@@ -13,7 +14,7 @@ function questionsForPart(questions, part) {
 }
 
 function isAvailable(question, unlockedIds) {
-  return (question.id >= 19 && question.id <= 31) || unlockedIds.includes(question.id);
+  return question.id <= 31 || unlockedIds.includes(question.id);
 }
 
 function PartPicker({ value, onChange, questions }) {
@@ -82,9 +83,9 @@ const firebaseConfig = {
   measurementId: "G-JKY86F4M6H"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const unlockedRef = db.ref('/unlockedIds');
+if (!CLOUD_PAUSED) firebase.initializeApp(firebaseConfig);
+const db = CLOUD_PAUSED ? null : firebase.database();
+const unlockedRef = CLOUD_PAUSED ? null : db.ref('/unlockedIds');
 
 /* --------------------------------- Utils ---------------------------------- */
 function shuffle(array) {
@@ -147,6 +148,10 @@ function App() {
       })
       .then((data) => { if (active) setQuestions(data); })
       .catch((error) => { if (active) setLoadError(error.message); });
+    if (CLOUD_PAUSED) {
+      setUnlockedIds(Array.from({ length: 31 }, (_, index) => index + 1));
+      return () => { active = false; };
+    }
     unlockedRef.on(
       "value",
       (snapshot) => {
@@ -160,7 +165,7 @@ function App() {
   }, []);
 
   const updateUnlockedIdsInFirebase = (newUnlockedIds) =>
-    db.ref(`/unlockedIds`).set(newUnlockedIds);
+    CLOUD_PAUSED ? Promise.resolve() : db.ref(`/unlockedIds`).set(newUnlockedIds);
 
   const handleUnlockNext = () => {
     const sorted = questions.filter((q) => q.id <= 31).sort((a, b) => a.id - b.id);
@@ -171,6 +176,7 @@ function App() {
   };
 
   const awardPoints = (username, amount) => {
+    if (CLOUD_PAUSED) return;
     if (!username || username === "__guest__" || username === "admin") return;
     const ref = db.ref(`/users/${username}/points`);
     ref.transaction((curr) => (curr || 0) + amount);
@@ -214,8 +220,8 @@ function App() {
               onClick={() => setView("learn")}>Learn</button>
             <button className={view === 'games' ? 'active' : ''}
               onClick={() => setView("games")}>Games</button>
-            <button className={view === 'leaderboard' ? 'active' : ''}
-              onClick={() => setView("leaderboard")}>Leaderboard</button>
+            {!CLOUD_PAUSED && <button className={view === 'leaderboard' ? 'active' : ''}
+              onClick={() => setView("leaderboard")}>Leaderboard</button>}
           </nav>
         </div>
       </header>
@@ -256,14 +262,14 @@ function App() {
           User: {user === "__guest__" ? "Guest" : user}
         </span>
 
-        <button className="px-3 py-1 rounded text-white"
+        {!CLOUD_PAUSED && <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: adminMode ? "#0097b2" : "#33c0d4" }}
           onClick={() => {
             setAdminMode(!adminMode);
             if (adminMode) setAdminAuth(false);
           }}>
           {adminMode ? "Close Admin" : "Admin"}
-        </button>
+        </button>}
 
         <button className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: "#0097b2" }}
@@ -274,7 +280,7 @@ function App() {
           Switch User
         </button>
 
-        <button className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        {!CLOUD_PAUSED && <button className="px-3 py-1 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: "#ef4444" }}
           disabled={user === "admin" || user === "__guest__"}
           onClick={() => {
@@ -295,7 +301,7 @@ function App() {
               });
           }}>
           Delete User
-        </button>
+        </button>}
       </footer>
     </div>
   );
@@ -396,7 +402,16 @@ function UserSelect({ onSubmit }) {
     const nickname = name.trim().toLowerCase();
     if (!nickname) return;
     if (nickname === "admin") {
+      if (CLOUD_PAUSED) {
+        setError("Admin controls are temporarily paused while we secure the database.");
+        return;
+      }
       setIsAdminLogin(true);
+      return;
+    }
+
+    if (CLOUD_PAUSED) {
+      onSubmit(nickname);
       return;
     }
 
@@ -447,7 +462,7 @@ function UserSelect({ onSubmit }) {
         <img src="logo.png" alt="Simple Christian Catechism Logo"
           className="w-28 h-28 mx-auto mb-2 rounded" />
         <h1 className="text-xl font-semibold text-center">Pick a nickname (optional)</h1>
-        <p className="text-sm text-center text-gray-600">Choose a nickname to save quiz points, or continue as a guest.</p>
+        <p className="text-sm text-center text-gray-600">Choose a name for this device, or continue as a guest. Cloud scores are temporarily paused.</p>
 
         <input type="text" placeholder="Enter your nickname"
           value={name} onChange={(e) => setName(e.target.value)}
@@ -468,8 +483,8 @@ function UserSelect({ onSubmit }) {
         <p className="text-xs text-center text-gray-500">
           Guests can play without saving a score to the leaderboard.
         </p>
-        <button type="button" className="w-full text-xs text-gray-500 underline"
-          onClick={() => { setIsAdminLogin(true); setError(""); }}>Admin login</button>
+        {!CLOUD_PAUSED && <button type="button" className="w-full text-xs text-gray-500 underline"
+          onClick={() => { setIsAdminLogin(true); setError(""); }}>Admin login</button>}
       </form>
     </div>
   );
@@ -664,6 +679,7 @@ function GamesView({ questions, unlockedIds, awardPoints, part, setPart }) {
   return (
     <div className="content-page games-page">
       <div className="page-heading"><span className="eyebrow">PRACTISE WHAT YOU KNOW</span><h1>Learn by playing</h1><p>Choose a part and a way to practise.</p></div>
+      {CLOUD_PAUSED && <p className="text-sm text-gray-600 mb-4">Games work as usual, but points are not being saved to the leaderboard right now.</p>}
       <PartPicker value={part} onChange={setPart} questions={questions} />
       <p className="section-count">{unlocked.length} questions available</p>
       {unlocked.length === 0 ? <div className="empty-state">No questions are available in this part yet.</div> : <>
