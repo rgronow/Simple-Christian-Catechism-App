@@ -64,12 +64,6 @@ function transformYouTubeURL(urlOrId) {
   return "";
 }
 
-function mediaFromDatabase(value, fallback) {
-  if (value === "") return "";
-  if (value && !String(value).includes("1zblTCsThDE")) return value;
-  return fallback || "";
-}
-
 // Detect Shorts so we can use a 9:16 frame
 function isYouTubeShorts(urlOrId) {
   if (!urlOrId) return false;
@@ -90,7 +84,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const dbRef = db.ref('/');
+const unlockedRef = db.ref('/unlockedIds');
 
 /* --------------------------------- Utils ---------------------------------- */
 function shuffle(array) {
@@ -146,57 +140,27 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    let localQuestions = [];
-    let liveQuestions = [];
-    const combine = () => {
-      if (!active) return;
-      const liveById = new Map(liveQuestions.map((q) => [Number(q.id), q]));
-      setQuestions(localQuestions.map((q) => {
-        const live = liveById.get(q.id) || {};
-        const bookletQuestion = q.id >= 19 && q.id <= 31;
-        return {
-          ...q,
-          question: bookletQuestion ? q.question : (live.question || q.question),
-          answer: bookletQuestion ? q.answer : (live.answer || q.answer),
-          song: mediaFromDatabase(live.song, q.song),
-          sermon: mediaFromDatabase(live.sermon, q.sermon),
-          youtube: live.youtube || q.youtube,
-        };
-      }));
-    };
     fetch('./catechism.json')
       .then((response) => {
         if (!response.ok) throw new Error(`Question file could not be loaded (${response.status}).`);
         return response.json();
       })
-      .then((data) => { localQuestions = data; combine(); })
+      .then((data) => { if (active) setQuestions(data); })
       .catch((error) => { if (active) setLoadError(error.message); });
-    dbRef.on(
+    unlockedRef.on(
       "value",
       (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          liveQuestions = Object.values(data.questions || {}).filter(Boolean);
-          combine();
-          setUnlockedIds(Object.values(data.unlockedIds || {}).map(Number));
-        }
+        if (active) setUnlockedIds(Object.values(snapshot.val() || {}).map(Number));
       },
       (error) => {
         console.error(error);
       }
     );
-    return () => { active = false; dbRef.off('value'); };
+    return () => { active = false; unlockedRef.off('value'); };
   }, []);
 
   const updateUnlockedIdsInFirebase = (newUnlockedIds) =>
     db.ref(`/unlockedIds`).set(newUnlockedIds);
-
-  const updateQuestionInFirebase = (updatedQuestion) =>
-    db.ref(`/questions/${updatedQuestion.id}`).update({
-      id: updatedQuestion.id,
-      song: updatedQuestion.song || "",
-      sermon: updatedQuestion.sermon || "",
-    });
 
   const handleUnlockNext = () => {
     const sorted = questions.filter((q) => q.id <= 31).sort((a, b) => a.id - b.id);
@@ -268,7 +232,6 @@ function App() {
             unlockedIds={unlockedIds}
             setUnlockedIds={updateUnlockedIdsInFirebase}
             handleUnlockNext={handleUnlockNext}
-            updateQuestion={updateQuestionInFirebase}
           />
         ) : view === "home" ? (
           <HomeScreen onNavigate={setView} onPartChange={setPart} />
@@ -538,7 +501,7 @@ function AdminLogin({ onSuccess, onCancel }) {
   );
 }
 
-function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, updateQuestion }) {
+function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext }) {
   const toggleUnlocked = (id) => {
     const next = unlockedIds.includes(id)
       ? unlockedIds.filter((u) => u !== id)
@@ -546,16 +509,11 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
     setUnlockedIds(next);
   };
 
-  const handleFieldChange = (id, field, value) => {
-    const q = questions.find((x) => x.id === id);
-    if (q) updateQuestion({ ...q, [field]: value });
-  };
-
   const unlockAll = () => setUnlockedIds(questions.map((q) => q.id));
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">Part 2 is available to everyone. Unlock controls apply to Part 1 and later questions.</p>
+      <p className="text-sm text-gray-600">Part 2 is available to everyone. Media links are published with the app, so they cannot be changed from this screen.</p>
       <div className="flex space-x-2">
         <button className="text-white px-4 py-2 rounded"
           style={{ backgroundColor: "#22c55e" }} onClick={handleUnlockNext}>
@@ -575,7 +533,7 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
               <th className="border px-2 py-1 text-left">Question</th>
               <th className="border px-2 py-1 text-center">Unlocked</th>
               <th className="border px-2 py-1 text-left">Song</th>
-              <th className="border px-2 py-1 text-left">2-min Sermon</th>
+              <th className="border px-2 py-1 text-left">Mini sermon</th>
             </tr>
           </thead>
           <tbody>
@@ -592,19 +550,8 @@ function AdminView({ questions, unlockedIds, setUnlockedIds, handleUnlockNext, u
                     onChange={() => toggleUnlocked(q.id)} />
                 </td>
 
-                <td className="border px-2 py-1">
-                  <input type="text" className="border rounded w-full p-1 text-xs"
-                    value={q.song || ""}
-                    onChange={(e) => handleFieldChange(q.id, "song", e.target.value)}
-                    placeholder="Paste Song YouTube link or ID" />
-                </td>
-
-                <td className="border px-2 py-1">
-                  <input type="text" className="border rounded w-full p-1 text-xs"
-                    value={q.sermon || ""}
-                    onChange={(e) => handleFieldChange(q.id, "sermon", e.target.value)}
-                    placeholder="Paste 2-min Sermon YouTube link (watch/shorts) or ID" />
-                </td>
+                <td className="border px-2 py-1">{q.song ? "Linked" : "Off"}</td>
+                <td className="border px-2 py-1">{q.sermon ? "Linked" : "Off"}</td>
               </tr>
             ))}
           </tbody>
