@@ -4,7 +4,7 @@ const { useState, useEffect, useMemo } = React;
 const PARTS = [
   { id: "part1", label: "Part 1", title: "God, creation & our need", start: 1, end: 18 },
   { id: "part2", label: "Part 2", title: "The Redeemer & salvation", start: 19, end: 31 },
-  { id: "more", label: "More", title: "Growing in faith", start: 32, end: Infinity },
+  { id: "part3", label: "Part Three", title: "Growing in faith", start: 32, end: Infinity, visible: false },
 ];
 
 function questionsForPart(questions, part) {
@@ -19,7 +19,7 @@ function isAvailable(question, unlockedIds) {
 function PartPicker({ value, onChange, questions }) {
   return (
     <div className="part-picker" role="group" aria-label="Catechism part">
-      {PARTS.filter((part) => questionsForPart(questions, part.id).length).map((part) => (
+      {PARTS.filter((part) => part.visible !== false && questionsForPart(questions, part.id).length).map((part) => (
         <button key={part.id} type="button" className={value === part.id ? "part-choice active" : "part-choice"}
           aria-pressed={value === part.id} onClick={() => onChange(part.id)}>
           <span>{part.label}</span><small>{part.title}</small>
@@ -33,6 +33,7 @@ function PartPicker({ value, onChange, questions }) {
 function transformYouTubeURL(urlOrId) {
   if (!urlOrId) return "";
   const s = String(urlOrId).trim();
+  if (s.includes("1zblTCsThDE")) return "";
 
   // Already an /embed/ URL
   if (s.includes("/embed/")) return s;
@@ -151,8 +152,8 @@ function App() {
           ...q,
           question: bookletQuestion ? q.question : (live.question || q.question),
           answer: bookletQuestion ? q.answer : (live.answer || q.answer),
-          song: live.song || q.song,
-          sermon: live.sermon || q.sermon,
+          song: q.id <= 18 ? q.song : (live.song || q.song),
+          sermon: q.id <= 18 ? q.sermon : (live.sermon || q.sermon),
           youtube: live.youtube || q.youtube,
         };
       }));
@@ -192,7 +193,7 @@ function App() {
     });
 
   const handleUnlockNext = () => {
-    const sorted = [...questions].sort((a, b) => a.id - b.id);
+    const sorted = questions.filter((q) => q.id <= 31).sort((a, b) => a.id - b.id);
     const locked = sorted.find((q) => !isAvailable(q, unlockedIds));
     if (locked) {
       updateUnlockedIdsInFirebase([...unlockedIds, locked.id]);
@@ -257,7 +258,7 @@ function App() {
           <div>Loading…</div>
         ) : adminMode ? (
           <AdminView
-            questions={questions}
+            questions={questions.filter((q) => q.id <= 31)}
             unlockedIds={unlockedIds}
             setUnlockedIds={updateUnlockedIdsInFirebase}
             handleUnlockNext={handleUnlockNext}
