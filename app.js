@@ -64,6 +64,12 @@ function transformYouTubeURL(urlOrId) {
   return "";
 }
 
+function mediaFromDatabase(value, fallback) {
+  if (value === "") return "";
+  if (value && !String(value).includes("1zblTCsThDE")) return value;
+  return fallback || "";
+}
+
 // Detect Shorts so we can use a 9:16 frame
 function isYouTubeShorts(urlOrId) {
   if (!urlOrId) return false;
@@ -152,8 +158,8 @@ function App() {
           ...q,
           question: bookletQuestion ? q.question : (live.question || q.question),
           answer: bookletQuestion ? q.answer : (live.answer || q.answer),
-          song: q.id <= 18 ? q.song : (live.song || q.song),
-          sermon: q.id <= 18 ? q.sermon : (live.sermon || q.sermon),
+          song: mediaFromDatabase(live.song, q.song),
+          sermon: mediaFromDatabase(live.sermon, q.sermon),
           youtube: live.youtube || q.youtube,
         };
       }));
